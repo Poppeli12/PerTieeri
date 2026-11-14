@@ -96,9 +96,19 @@ async function take(userId: string): Promise<'ok' | 'user_limit' | 'global_limit
   return v === 'user_limit' || v === 'global_limit' ? v : 'ok';
 }
 
+/** Pääkytkin (Supabase-salaisuus DEMO_AI_ENABLED). false/0/off → agentti pois päältä, OpenAI:ta ei kutsuta. */
+function aiEnabled() {
+  const v = (Deno.env.get('DEMO_AI_ENABLED') ?? 'true').trim().toLowerCase();
+  return !['false', '0', 'off', 'no'].includes(v);
+}
+
 async function agent(req: Request) {
-  if (req.method === 'GET') return json(200, { ok: !!Deno.env.get('OPENAI_API_KEY'), model: Deno.env.get('OPENAI_MODEL') || 'gpt-6-luna' });
+  if (req.method === 'GET') return json(200, { ok: !!Deno.env.get('OPENAI_API_KEY') && aiEnabled(), ai_enabled: aiEnabled(), model: Deno.env.get('OPENAI_MODEL') || 'gpt-6-luna' });
   if (req.method !== 'POST') return json(405, { error: 'POST' });
+  // Luetaan pyynnön runko aina ensin: jos vastataan lukematta sitä, selaimen yhteys voi jäädä odottamaan.
+  const text = await req.text();
+  // Ensimmäinen tarkistus: kun demo-AI on pois päältä, mitään ei välitetä OpenAI:lle (ei istuntoa, kiintiötä eikä kutsua).
+  if (!aiEnabled()) return json(403, { error: 'Per Tieeri on tauolla', ai_enabled: false });
   if (req.headers.get('x-per-tieeri') !== '1') return json(403, { error: 'kielletty' });
   const userId = await userFrom(req);
   if (!userId) return json(401, { error: 'istunto puuttuu' });
@@ -110,7 +120,6 @@ async function agent(req: Request) {
   if (quota !== 'ok') return json(429, { error: quota === 'user_limit' ? 'päivän kysymyskiintiö täynnä' : 'demon päiväkiintiö täynnä' });
   const key = Deno.env.get('OPENAI_API_KEY');
   if (!key) return json(503, { error: 'OPENAI_API_KEY puuttuu Supabasen salaisuuksista' });
-  const text = await req.text();
   if (text.length > 512 * 1024) return json(413, { error: 'liian suuri pyyntö' });
   const body = JSON.parse(text);
   // vain sallitut kentät eteenpäin; malli ja päättelytaso päätetään palvelimella

@@ -87,6 +87,7 @@ More detail: [docs/DATA.md](docs/DATA.md), [docs/COMPARISONS.md](docs/COMPARISON
 - Rate limits protect the agent: requests per minute, a per-user daily quota and a global daily cap (`pt_ai_usage`). The model and maximum output are fixed server-side.
 - Row Level Security: a user can read and write only their own `pt_customer_memory` rows. The anonymous role has no table access.
 - The dataset is public synthetic data, so the storage bucket is public read-only.
+- A server-side switch, `DEMO_AI_ENABLED` (a Supabase secret), turns the agent off before any OpenAI call is made. Turn it on or off with `npm run ai:on` and `npm run ai:off`, and check it with `npm run ai:status`. No rebuild is needed; data and memories stay available.
 
 ## Run locally
 

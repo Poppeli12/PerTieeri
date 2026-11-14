@@ -35,7 +35,10 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "phone": "expo start --tunnel",
-    "lan": "expo start --lan"
+    "lan": "expo start --lan",
+    "ai:on": "node scripts/demo-ai.mjs on",
+    "ai:off": "node scripts/demo-ai.mjs off",
+    "ai:status": "node scripts/demo-ai.mjs status"
   },
   "private": true
 }

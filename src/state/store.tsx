@@ -356,7 +356,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
                 ts: Date.now(),
                 mood: 'nolo',
                 // ei teknisiä virhetekstejä asiakkaalle; painike lähettää saman kysymyksen uudelleen
-                text: /kiintiö/.test(String(e?.message ?? ''))
+                text: /tauolla/.test(String(e?.message ?? ''))
+                  ? 'Suokaa anteeksi, olen juuri nyt pienellä tauolla enkä voi vastata. Sovelluksen muut tiedot toimivat normaalisti, ja palvelen taas pian.'
+                  : /kiintiö/.test(String(e?.message ?? ''))
                   ? 'Suokaa anteeksi, tämän päivän kysymykset on tässä esittelyversiossa käytetty. Palataan asiaan huomenna.'
                   : 'Suokaa anteeksi, yhteys katkesi hetkeksi, enkä halua vastata arvaamalla. Painakaa alta, niin katson asian uudelleen.',
                 chips: [shown],
