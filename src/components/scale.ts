@@ -5,7 +5,8 @@ export const REF_W = 591;
 
 /** Tietokoneen selaimessa sovellus näytetään puhelinkehyksessä (ks. App.tsx PhoneFrame). */
 export const FRAME_MIN_WINDOW = 700;
-export const FRAME_W = 412;
+export const FRAME_W = 390;
+export const FRAME_H = 844;
 export function useFramed() {
   const { width } = useWindowDimensions();
   return Platform.OS === 'web' && width >= FRAME_MIN_WINDOW;
