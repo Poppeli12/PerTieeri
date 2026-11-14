@@ -10,6 +10,7 @@ import { Text } from '../Text';
 import { Rich } from '../ui';
 import { BasketsCard } from './BasketsCard';
 import { BlocksCard } from './BlocksCard';
+import { SpendingGridCard } from './SpendingGridCard';
 import { ForecastChart } from './ForecastChart';
 import { GameCard } from './GameCard';
 import { WhatIfCard } from './WhatIfCard';
@@ -50,6 +51,8 @@ export function CardView({ card }: { card: Card }) {
   const ic = 28 * k;
   const art = card.kind === 'stat' && card.art === 'selviytymisaika' ? card.art : null;
   switch (card.kind) {
+    case 'spendingGrid':
+      return <SpendingGridCard data={card.data} />;
     case 'baskets':
       return (
         <Shell title="Kolme rahakoria" icon={<JarsIcon size={ic} />}>

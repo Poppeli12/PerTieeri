@@ -7,6 +7,7 @@ export type Tone = 'good' | 'warn' | 'bad' | 'demo' | undefined;
 export type Card =
   | { kind: 'baskets'; months?: number }
   | { kind: 'blocks' }
+  | { kind: 'spendingGrid'; data: import('../finance/spendingGrid').SpendingGrid }
   | { kind: 'whatif'; preset?: Partial<Record<LeverKey, number>>; scenarioName?: string }
   | { kind: 'goalPlans'; goal: ReturnType<typeof import('../finance/insights').goalPlans> }
   | { kind: 'forecast'; title: string; sim: SimResult; compare?: SimResult; compareLabel?: string; baseLabel?: string }

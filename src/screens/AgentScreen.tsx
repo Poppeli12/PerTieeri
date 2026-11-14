@@ -23,16 +23,20 @@ import { SortingScene } from '../components/buckets/SortingScene';
  * harmaa pyöristetty kirjoituskenttä ja vihreä lähetysnappi. Ei alkukyselyä.
  */
 
+const GRID_PROMPT = 'Katso kulujani ruudukkonäkymällä';
+
 const STARTERS = [
   'Mihin rahani kuluvat eniten kuukausittain?',
   'Paljonko voin käyttää turvallisesti tällä viikolla?',
   'Riittävätkö rahani tuleviin laskuihin ja menoihin?',
   'Mistä menoistani voisin säästää 100 € kuukaudessa?',
+  GRID_PROMPT,
 ];
 
 /** Kokeiltavia aloituksia (tuomareille ja käyttäjille) – Per Tieeri ratkaisee ne vapaasti työkaluillaan. */
 const TRY_THESE = [
   GAME_PROMPT,
+  GRID_PROMPT,
   'Näytä ympyrädiagrammi kulutuksestani viime kuussa',
   'Mihin viimeiset 1 000 euroa menivät?',
   'Voinko ostaa 700 € tietokoneen ensi viikolla?',
@@ -104,7 +108,7 @@ function Chat({ k }: { k: number }) {
   // Enintään 2, jotta teksti mahtuu kokonaan näkyviin.
   const lastBot = [...messages].reverse().find((m) => m.from === 'bot');
   const [examples] = useState(() => [GAME_PROMPT, ...TRY_THESE.filter(t => t !== GAME_PROMPT).sort(() => Math.random() - 0.5)]);
-  const allChips = typing ? [] : lastBot?.chips?.length ? lastBot.chips : examples;
+  const allChips = typing ? [] : lastBot?.chips?.length ? lastBot.chips : lastBot ? examples.filter(c => c !== GRID_PROMPT) : examples;
   // Uusi vastaus aloittaa ehdotusten selauksen ensimmäiseltä sivulta.
   const chipKey = lastBot?.id ?? 'examples';
 

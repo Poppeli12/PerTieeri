@@ -24,6 +24,7 @@ import {
 } from '../finance/analytics';
 import { BASKET_FI, basketOf, CAT_FI, LEVER_FI, LeverKey } from '../finance/categories';
 import { simulate } from '../finance/forecast';
+import { monthlySpendingGrid } from '../finance/spendingGrid';
 import { optimize } from '../finance/optimizer';
 import { getScenarios, upsertScenario } from '../finance/insights';
 import { ICON_NAMES } from '../icons/registry';
@@ -101,6 +102,7 @@ export const TOOL_DEFS = [
     parameters: obj({ months: { type: 'integer', description: 'jakson pituus kuukausina 1–12' } }),
   },
   { name: 'show_money_blocks', description: 'VISUAALI: "mihin viimeiset 1 000 € menivät" – 100 kolikon ruudukko kategorioittain.', parameters: obj({}) },
+  { name: 'show_monthly_spending_grid', description: 'VISUAALI: Katso kulujani ruudukkonäkymällä / näytä mihin rahani menivät sadalla ruudulla. 10 × 10 ruutua asiakkaan koko kuukauden OMISTA kulutusmenoista. Oletus edellinen täysi kalenterikuukausi sovelluksen tilitietojen viitepäivästä. Yksi ruutu = 1 % todellisista menoista. Palauttaa summat, osuudet, pyöristyksen ja valittavan selitteen. Käytä tätä kuukausikulutuksen ruudukkoon; show_money_blocks on erillinen viimeisten 1 000 euron näkymä. Ei esimerkkijakaumia.', parameters: obj({ month: { type: 'string', description: 'Päättynyt kuukausi YYYY-MM. Jätä pois, ellei asiakas pyydä tiettyä kuukautta.' } }) },
   {
     name: 'show_forecast',
     description: 'VISUAALI: saldoennusteen käyrä vaihteluvälillä. Jos changes/monthly_saving/one_off annetaan, näytetään vertailu nykytahtiin.',
@@ -364,6 +366,15 @@ export function runTool(name: string, a: any, ctx: AgentCtx): ToolOutput {
     }
     case 'show_money_blocks':
       return { result: { naytetty: true }, card: { kind: 'blocks' } };
+    case 'show_monthly_spending_grid': {
+      const data = monthlySpendingGrid(a.month);
+      return { card: { kind: 'spendingGrid', data }, result: data.status === 'ready' ? {
+        naytetty: true, asiakas: data.customerId, kuukausi: data.month, tilitietojen_viitepaiva: data.referenceDate,
+        menot_euroa: data.totalCents / 100, yksi_ruutu_euroa: data.cellEuros, ruutuja: 100,
+        luokat: data.groups.map(g => ({ nimi: g.label, euroa: g.cents / 100, prosenttia: g.percentHundredths / 100, ruutuja: g.cells })),
+        ohje: 'Selitä lyhyesti: 100 ruutua on kuukauden koko kulutus, yksi ruutu on 1 %. Mainitse oikea kuukausi ja yksi asiakkaan lukuihin perustuva havainto sekä miksi se auttaa ymmärtämään menoja. Menon suuruus ei yksin tarkoita, että siitä pitäisi säästää. Selitettä painamalla näkee tapahtumat. Ruutuosuudet pyöristetään; selitteessä ovat sentintarkat summat. Älä toista koko taulukkoa tekstissä. Älä väitä tämän kuvaavan kuluvan oikean kalenterikuukauden menoja tai koko kotitaloutta.'
+      } : { naytetty: false, kuukausi: data.month, tila: data.status, viesti: data.message, ohje: 'Kerro puute ymmärrettävästi. Älä keksi jakaumaa, täytä puuttuvia menoja arvauksilla tai korvaa pyyntöä 1 000 euron ruudukolla. Tarjoa toista saatavilla olevaa kuukautta.' } };
+    }
     case 'show_forecast': {
       const hasChange = a.changes || a.monthly_saving || a.one_off;
       const base = sim(ctx, { until: a.until });
