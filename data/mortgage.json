@@ -1,0 +1,88 @@
+{
+ "source": "Junction 2026 – S-Pankin synteettiset asuntolainahakemukset (200 kpl)",
+ "n": 200,
+ "decisions": {
+  "approved": 150,
+  "rejected": 50
+ },
+ "rejection_reasons": {
+  "insufficient_collateral": 34,
+  "insufficient_income": 8,
+  "insufficient_equity": 6,
+  "existing_debt": 2
+ },
+ "all": {
+  "property_price_eur": {
+   "median": 255750.0,
+   "p25": 212375.0,
+   "p75": 331625.0,
+   "n": 200
+  },
+  "requested_loan_eur": {
+   "median": 230250.0,
+   "p25": 180750.0,
+   "p75": 282750.0,
+   "n": 200
+  },
+  "equity_eur": {
+   "median": 34750.0,
+   "p25": 21000.0,
+   "p75": 47500.0,
+   "n": 200
+  },
+  "loan_to_value": {
+   "median": 0.86,
+   "p25": 0.83,
+   "p75": 0.92,
+   "n": 200
+  },
+  "required_monthly_income_eur": {
+   "median": 4238.58,
+   "p25": 3327.36,
+   "p75": 5205.03,
+   "n": 200
+  }
+ },
+ "by_decision": {
+  "approved": {
+   "loan_to_value": {
+    "median": 0.85,
+    "p25": 0.82,
+    "p75": 0.91,
+    "n": 150
+   },
+   "equity_eur": {
+    "median": 38500.0,
+    "p25": 21125.0,
+    "p75": 51875.0,
+    "n": 150
+   },
+   "required_monthly_income_eur": {
+    "median": 4261.59,
+    "p25": 3223.81,
+    "p75": 5455.85,
+    "n": 150
+   }
+  },
+  "rejected": {
+   "loan_to_value": {
+    "median": 0.87,
+    "p25": 0.85,
+    "p75": 0.92,
+    "n": 50
+   },
+   "equity_eur": {
+    "median": 32000.0,
+    "p25": 19625.0,
+    "p75": 41000.0,
+    "n": 50
+   },
+   "required_monthly_income_eur": {
+    "median": 4229.38,
+    "p25": 3552.86,
+    "p75": 4903.59,
+    "n": 50
+   }
+  }
+ }
+}

@@ -1,0 +1,77 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const ts = require('typescript');
+require.extensions['.ts'] = (mod, file) => mod._compile(ts.transpileModule(fs.readFileSync(file, 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, esModuleInterop: true, target: ts.ScriptTarget.ES2022 } }).outputText, file);
+const analytics = require('../src/finance/analytics.ts');
+const { optimize, levers } = require('../src/finance/optimizer.ts');
+const insights = require('../src/finance/insights.ts');
+const { simulate } = require('../src/finance/forecast.ts');
+const { runCoachTool } = require('../src/agent/coach.ts');
+const prefs = { protected: ['Sport'], rejections: {}, accepted: {} };
+const profile = { rentDelta: 0, incomeDelta: 0, protect: ['Sport'] };
+const ctx = { prefs, profile, answers: {} };
+const bank = JSON.parse(fs.readFileSync('data/customers/CUST00171.json', 'utf8'));
+analytics.setCustomerData(bank);
+let checks = 0;
+const check = (value, message) => { assert(value, message); checks++; };
+for (const target of [0, 0.01, 49.99, 150, 500, 1e10]) {
+  const plan = optimize(target, prefs);
+  check(!plan.items.some(i => i.key === 'Sport'), 'Protected expenses excluded');
+  check(plan.feasible === (plan.total + 1e-8 >= target), 'Feasibility uses actual amounts');
+  check(plan.items.every(i => Math.abs(i.saving - i.base * i.pct / 100) < 1e-8), 'Every saving is grounded in own baseline');
+  check(Number.isFinite(plan.pain), 'Bounded optimizer handles huge target');
+}
+const before = optimize(150, prefs);
+analytics.setPeerMedians({ Restaurants: 1, Lifestyle: 1, Groceries: 1 }, 100, 'test');
+check(JSON.stringify(before) === JSON.stringify(optimize(150, prefs)), 'Synthetic peers never change personal recommendations');
+const goal = insights.goalPlans(0, null, 150, prefs);
+check(goal.branches > 100, 'Search evaluates branches, not a fixed conversation route');
+check(goal.cutNeeded >= Math.max(0, 150 - goal.baseline), 'Monthly deficit covered before saving');
+check(new Set(goal.plans.map(p => JSON.stringify(p.items.map(i => [i.key, i.pct]).sort()))).size === goal.plans.length, 'Alternatives are genuinely distinct');
+check(goal.plans.every(p => !p.cashflowAcceptable || (p.feasible && p.forecast.min >= 0 && p.forecast.risk <= .1)), 'Forecast guards suitability');
+assert.throws(() => insights.goalPlans(2000, '2026-01-01', null, prefs));
+assert.throws(() => insights.goalPlans(2000, '2026-02-31', null, prefs));
+runCoachTool('scenario', {action:'set',name:'Testi',changes:{Restaurants:-20},purchase:{label:'Kone',amount:500,date:'2026-10-20'}},ctx);
+runCoachTool('scenario', {action:'set',name:'Testi',rent_delta:150},ctx);
+runCoachTool('scenario', {action:'set',name:'Testi',purchase:{label:'Kone',amount:500,date:'2026-11-20'}},ctx);
+let scenario = insights.getScenarios().Testi;
+check(scenario.changes.Restaurants === -20 && scenario.rentDelta === 150 && scenario.purchases.length === 1 && scenario.purchases[0].date === '2026-11-20', 'Chained edits preserve other parts and reschedule one purchase');
+runCoachTool('scenario', {action:'set',name:'Haara',copy_from:'Testi',income_delta:200},ctx);
+check(insights.getScenarios().Haara.purchases.length === 1 && insights.getScenarios().Haara.rentDelta === 150 && insights.getScenarios().Testi.incomeDelta === 0, 'Branch clones all parts and leaves source intact');
+const restaurant = levers().find(l => l.key === 'Restaurants');
+runCoachTool('scenario', {action:'set',name:'Testi',euro_changes:[{lever:'Restaurants',amount:-5,period:'week'}]},ctx);
+check(Math.abs(insights.getScenarios().Testi.changes.Restaurants * restaurant.base / 100 + 5 * 52 / 12) < 1e-8, 'Weekly euros converted against actual baseline');
+assert.throws(() => runCoachTool('scenario', {action:'set',name:'Testi',euro_changes:[{lever:'Restaurants',amount:-1e6,period:'month'}]},ctx));
+assert.throws(() => insights.upsertScenario('__proto__',{}));
+const base = simulate({until:'2026-12-31'});
+const now = simulate({until:'2026-12-31',oneOffs:[{date:analytics.TODAY,amount:400}]});
+const later = simulate({until:'2026-12-31',oneOffs:[{date:'2026-11-15',amount:400}]});
+check(Math.abs(base.end.p50 - now.end.p50 - 400) < 1e-6, 'Today purchase affects forecast');
+check(Math.abs(now.end.p50 - later.end.p50) < 1e-6, 'Same purchase at another date has equal end amount');
+check(now.p50[0] < later.p50[0], 'Timing affects intermediate balance');
+assert.throws(() => simulate({until:'2026-12-31',oneOffs:[{date:'2027-01-01',amount:400}]}));
+assert.throws(() => simulate({until:'2036-12-31'}));
+const timing=runCoachTool('purchase_timing',{amount:400,dates:['2027-03-01','2027-04-01']},ctx);
+check(timing.card.series.length === 2, 'Later purchases are inside comparison horizon');
+const savings=insights.safeToSave();
+check(savings.suggestion === 0 || (savings.probNegative <= .1 && savings.minBalance >= 0), 'Unsafe savings proposal reduced');
+const saved = JSON.parse(JSON.stringify(insights.getScenarios()));
+analytics.setCustomerData({customer:{id:'CUST00002',age:30},transactions:[]});
+check(Object.keys(insights.getScenarios()).length === 0, 'Customer switch clears scenario engine');
+check(optimize(100,prefs).feasible === false, 'Missing data cannot yield savings');
+analytics.setCustomerData(bank);insights.restoreScenarios(saved);
+check(insights.getScenarios().Testi.purchases.length === 1, 'Scenario restoration restores purchase chain');
+const fixture=[];
+for(const month of ['04','05','06','07','08','09']) for(const c of ['Restaurants','Lifestyle']) fixture.push({d:`2026-${month}-01`,t:'12:00:00',c,a:-100,b:1000,ty:'purchase',m:'test',mcc:c==='Restaurants'?5812:5691});
+analytics.setCustomerData({customer:{id:'CUST00001',age:30},transactions:fixture});
+for(const strategy of ['gentle','few_changes','spread']) {
+ const target=55, plan=optimize(target,prefs,[],strategy);let exhaustive=Infinity;
+ for(const x of [0,10,20,30,40,50])for(const y of [0,10,20,30,40,50]){
+  if(x+y<target)continue;
+  const cost=p=>p===0?0:strategy==='few_changes'?1e6+(p/100)**2:strategy==='spread'?(p/100)**2*100:100*(p/100)**2*.6+6;
+  exhaustive=Math.min(exhaustive,cost(x)+cost(y));
+ }
+ check(Math.abs(plan.pain-exhaustive)<1e-6,`DP matches exhaustive branch search for ${strategy}`);
+}
+analytics.setCustomerData(bank);
+console.log(JSON.stringify({checks, alternatives:goal.plans.map(p=>({name:p.label,cut:p.total,net:p.netMonthly,risk:p.forecast.risk})), branches:goal.branches}));

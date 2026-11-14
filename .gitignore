@@ -39,3 +39,18 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# salaisuudet
+.env
+
+# Junction-aineisto (build-data.py tuottaa, ~300 Mt)
+/data/customers/
+
+# Supabase CLI:n paikalliset tiedostot
+supabase/.temp/
+debug.log
+
+# Henkilökohtaiset S-mobiili-kuvakaappaukset (sisältävät henkilötietoja) ja testikuvat – eivät kuulu julkiseen repoon
+/design/reference/*.png
+/design/current/
+/design/reference/ikonit/
