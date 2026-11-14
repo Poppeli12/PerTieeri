@@ -230,65 +230,146 @@ export type GameQ =
 
 const eurS = (n: number) => `${Math.round(n).toLocaleString('fi-FI').replace(/ /g, ' ')} €`;
 
-/** Asiakkaan EDELLISEN täyden kuukauden todellisiin tapahtumiin perustuvat kysymykset (3 monivalintaa + 2 numeerista) */
+/**
+ * Kuukauden talouspeli: asiakkaan EDELLISEN täyden kuukauden omista tapahtumista.
+ * Aina 3 monivalintaa + 2 omaa arviota (numerovastaus). Jos jokin kysymys ei sovi asiakkaan dataan
+ * (esim. liian vähän menoluokkia), käytetään hänen datastaan muodostettua varakysymystä.
+ */
 export function monthlyGame(ym: string): { ym: string; questions: GameQ[] } {
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(ym) || ym > TODAY.slice(0, 7)) throw new Error('Valitkaa kuukausi, jolta tilitapahtumia on jo saatavilla.');
   const m = monthStatus(ym);
   const prevYm = lastMonths(2, ym)[0];
-  const prev = monthStatus(prevYm);
-  const qs: GameQ[] = [];
-  // 1) suurin menoluokka
+  const list = txs().filter((t) => t.d.startsWith(ym));
+  if (!list.some(isSpend)) throw new Error('Tältä kuukaudelta ei ole riittävästi omia menotapahtumia peliin. Valitkaa toinen kuukausi.');
+  const choices: GameQ[] = [];
+  const numbers: GameQ[] = [];
+  // sekoitetaan vaihtoehtojen järjestys deterministisesti (sama peli samalle kuukaudelle)
+  const rotate = <T,>(xs: T[], n: number) => xs.map((_, i) => xs[(i + n) % xs.length]);
+
+  // M1) suurin menoluokka
   const top = m.top.filter(([c]) => c !== 'Housing');
-  if (top.length >= 3) {
+  if (top.length >= 3 && top[0][1] - top[1][1] > 0.005) {
     const opts = [top[0], top[1], top[2]].map(([c]) => CAT_FI[c] ?? c);
-    const order = [1, 0, 2];
-    qs.push({
+    const shown = rotate(opts, 1);
+    choices.push({
       id: 'top',
       type: 'choice',
       q: 'Mihin menoluokkaan (asumista lukuun ottamatta) kului eniten rahaa?',
-      options: order.map((i) => opts[i]),
-      correct: order.indexOf(0),
-      why: `${opts[0]}: ${eurS(top[0][1])}. Toisena ${opts[1]} ${eurS(top[1][1])}.`,
+      options: shown,
+      correct: shown.indexOf(opts[0]),
+      why: `${opts[0]}: ${eurS(top[0][1])}. Toisena ${opts[1]} ${eurS(top[1][1])}. Kuukauden yhteissumma kertoo enemmän kuin yksittäisen ostoksen hinta: pienetkin ostokset kertyvät.`,
     });
   }
-  // 2) kokonaismenot (numero)
-  qs.push({ id: 'spend', type: 'number', q: 'Arvioi: paljonko menoja (ostot, laskut ja asuminen) kertyi yhteensä?', answer: Math.round(m.spend), tolerance: 0.15, unit: '€', why: `Menoja kertyi ${eurS(m.spend)}.` });
-  // 3) jäikö plussalle
-  qs.push({
+  // M2) jäikö plussalle
+  choices.push({
     id: 'net',
     type: 'choice',
     q: 'Jäikö kuukausi plussalle vai miinukselle, kun tuloista vähennetään menot?',
-    options: ['Selvästi plussalle', 'Suunnilleen nollille', 'Miinukselle'],
+    options: ['Yli 100 € plussalle', 'Enintään 100 € plussalle tai miinukselle', 'Yli 100 € miinukselle'],
     correct: m.net > 100 ? 0 : m.net < -100 ? 2 : 1,
-    why: `Tulot ${eurS(m.income)} − menot ${eurS(m.spend)} = ${m.net >= 0 ? '+' : '−'}${eurS(Math.abs(m.net))}.`,
+    why: `Tulot ${eurS(m.income)} − menot ${eurS(m.spend)} = ${m.net >= 0 ? '+' : '−'}${eurS(Math.abs(m.net))}. Tämä kertoo, kattaako kuukauden tulo kulutuksen. Se ei ole sama kuin tilin saldo: aiemmat rahat ja säästösiirrot vaikuttavat saldoon myös.`,
   });
-  // 4) suurin muutos edelliskuuhun
+  // M3) suurin muutos edelliskuuhun
   const ch = changeBetween(prevYm, ym).diffs.filter((d) => d.key !== 'Housing');
-  if (ch.length >= 3) {
+  if (ch.length >= 3 && Math.abs(ch[0].delta) - Math.abs(ch[1].delta) > 0.005 && txs().some(t => t.d.startsWith(prevYm) && isSpend(t))) {
     const opts = ch.slice(0, 3).map((d) => d.label);
-    const order = [2, 0, 1];
-    qs.push({
+    const shown = rotate(opts, 2);
+    choices.push({
       id: 'change',
       type: 'choice',
-      q: 'Minkä menoluokan summa muuttui eniten edelliseen kuukauteen verrattuna?',
-      options: order.map((i) => opts[i]),
-      correct: order.indexOf(0),
-      why: `${ch[0].label}: ${eurS(ch[0].from)} → ${eurS(ch[0].to)} (${ch[0].delta >= 0 ? '+' : '−'}${eurS(Math.abs(ch[0].delta))}).`,
+      q: 'Minkä menoluokan summa muuttui eniten edelliskuusta (asumista lukuun ottamatta)?',
+      options: shown,
+      correct: shown.indexOf(opts[0]),
+      why: `${ch[0].label}: ${eurS(ch[0].from)} → ${eurS(ch[0].to)} (${ch[0].delta >= 0 ? '+' : '−'}${eurS(Math.abs(ch[0].delta))}). Muutos auttaa huomaamaan, mikä omassa arjessa vaikutti rahojen riittävyyteen. Yksi kuukausi ei vielä kerro pysyvästä tavasta.`,
     });
   }
-  // 5) arjen lipsuvat menot (numero) – kolmen korin opetus
+  // varakysymys: kuukauden suurin yksittäinen ostos – mihin luokkaan se kuului?
+  const buys = list.filter((t) => t.a < 0 && t.ty === 'purchase').sort((x, y) => x.a - y.a);
+  const cats = [...new Set(list.filter((t) => t.a < 0 && t.ty === 'purchase').map((t) => t.c))];
+  if (choices.length < 3 && buys.length && cats.length >= 3 && (!buys[1] || buys[1].a - buys[0].a > 0.005)) {
+    const big = buys[0];
+    const others = cats.filter((c) => c !== big.c).slice(0, 2);
+    const opts = [big.c, ...others].map((c) => CAT_FI[c] ?? c);
+    const shown = rotate(opts, 1);
+    choices.push({
+      id: 'biggest',
+      type: 'choice',
+      q: 'Kuukauden suurin yksittäinen ostos – mihin menoluokkaan se kuului?',
+      options: shown,
+      correct: shown.indexOf(opts[0]),
+      why: `Suurin ostos oli ${eurS(-big.a)} (${opts[0]}) ${+big.d.slice(8)}.${+big.d.slice(5, 7)}.`,
+    });
+  }
+  // varakysymys: minä viikonpäivänä kului eniten?
+  if (choices.length < 3) {
+    const DAYS = ['sunnuntaina', 'maanantaina', 'tiistaina', 'keskiviikkona', 'torstaina', 'perjantaina', 'lauantaina'];
+    const byDay = new Array(7).fill(0);
+    for (const t of list) if (t.a < 0 && t.ty === 'purchase') byDay[new Date(t.d + 'T12:00:00Z').getUTCDay()] -= t.a;
+    const order = byDay.map((v, i) => [v, i] as const).sort((x, y) => y[0] - x[0]);
+    const opts = [order[0][1], order[3][1], order[6][1]].map((i) => DAYS[i]);
+    const shown = rotate(opts, 2);
+    if (order[0][0] - order[1][0] > 0.005) choices.push({
+      id: 'weekday',
+      type: 'choice',
+      q: 'Minä viikonpäivänä ostoksiin kului kuukauden aikana eniten rahaa?',
+      options: shown,
+      correct: shown.indexOf(opts[0]),
+      why: `Eniten kului ${opts[0]}: yhteensä ${eurS(order[0][0])}.`,
+    });
+  }
+  // Toimii myös vähäisellä tapahtumamäärällä; tasatulos on oma oikea vaihtoehtonsa.
+  if (choices.length < 3) {
+    const first = list.filter(t => isSpend(t) && +t.d.slice(8) <= 15).reduce((s, t) => s - t.a, 0);
+    const second = m.spend - first;
+    choices.push({ id: 'timing', type: 'choice', q: 'Kummalla puolella kuuta menoihin kului enemmän rahaa?', options: ['Päivinä 1–15', 'Päivästä 16 kuun loppuun', 'Molemmilla yhtä paljon'], correct: Math.abs(first - second) < 0.005 ? 2 : first > second ? 0 : 1, why: `Päivinä 1–15 kului ${eurS(first)} ja loppukuussa ${eurS(second)}. Menojen ajoitus ratkaisee, milloin rahaa pitää olla tilillä, vaikka kuukauden yhteissumma olisi sama.` });
+  }
+  // A1) kokonaismenot (oma arvio)
+  if (choices.length < 3) {
+    const count = list.filter(isSpend).length;
+    choices.push({ id: 'frequency', type: 'choice', q: 'Kuinka monta menotapahtumaa kuukaudessa oli?', options: ['Yksi', '2–5 tapahtumaa', 'Yli 5 tapahtumaa'], correct: count === 1 ? 0 : count <= 5 ? 1 : 2, why: `Menotapahtumia oli ${count}. Ostosten tiheys vaikuttaa kuukauden menoihin yhdessä niiden hinnan kanssa. Pelkkä yhden ostoksen hinta ei kerro koko kuvaa.` });
+  }
+  numbers.push({ id: 'spend', type: 'number', q: 'Arvioikaa: paljonko menoja (ostot, laskut ja asuminen) kertyi kuukaudessa yhteensä?', answer: Math.round(m.spend), tolerance: 0.15, unit: '€', why: `Menoja kertyi ${eurS(m.spend)}. Säästöön siirretty raha ei ole kulutusta, joten säästösiirrot eivät sisälly tähän. Kuukausisumma auttaa suunnittelemaan, kuinka paljon tulevista tuloista on varattava arkeen.` });
+  // A2) arjen lipsuvat menot (oma arvio) – kolmen korin opetus
   let slip = 0;
-  for (const t of txs()) if (t.d.startsWith(ym) && t.a < 0 && basketOf(t.c, t.mcc) === 'slipping') slip -= t.a;
-  qs.push({
+  for (const t of list) if (isSpend(t) && basketOf(t.c, t.mcc) === 'slipping') slip -= t.a;
+  numbers.push({
     id: 'slip',
     type: 'number',
-    q: 'Arvioi: paljonko kului "arjen lipsuviin" menoihin (ravintolat, viihde, shoppailu, taksit…)?',
+    q: 'Arvioikaa: paljonko kului "arjen lipsuviin" menoihin (ravintolat, viihde, shoppailu, taksit…)?',
     answer: Math.round(slip),
     tolerance: 0.2,
     unit: '€',
-    why: `Arjen lipsuviin menoihin kului ${eurS(slip)} – se on ${m.spend > 0 ? Math.round((slip / m.spend) * 100) : 0} % kaikista menoista.`,
+    why: `Arjen lipsuviin menoihin kului ${eurS(slip)} – se on ${m.spend > 0 ? Math.round((slip / m.spend) * 100) : 0} % kaikista menoista. Näihin menoihin voi usein itse vaikuttaa. Kaikesta mukavasta ei silti tarvitse luopua: olennaista on valita, mikä on teille tärkeää.`,
   });
-  void prev;
-  return { ym, questions: qs.slice(0, 5) };
+  const [c1, c2, c3] = choices;
+  const questions = [c1, numbers[0], c2, c3, numbers[1]].filter(Boolean) as GameQ[];
+  return { ym, questions };
+}
+
+/** Pisteytys: monivalinta oikein 2 p. Oma arvio: toleranssin sisällä 2 p, kaksinkertaisen sisällä 1 p. Max 10. */
+export function parseGameAnswer(answer: string): number | null {
+  const text = answer.trim().replace(/\s/g, '').replace(/(?:€|eur)$/i, '');
+  if (!/^\+?\d+(?:[,.]\d{1,2})?$/.test(text)) return null;
+  const value = Number(text.replace(',', '.'));
+  return Number.isFinite(value) ? value : null;
+}
+
+export function gamePoints(q: GameQ, answer: number | string): number {
+  if (q.type === 'choice') return answer === q.correct ? 2 : 0;
+  const v = typeof answer === 'number' ? answer : parseGameAnswer(answer);
+  if (v === null || !Number.isFinite(v) || v < 0) return 0;
+  const diff = Math.abs(v - q.answer);
+  const tol = Math.max(10, Math.abs(q.answer) * q.tolerance);
+  return diff <= tol ? 2 : diff <= tol * 2 ? 1 : 0;
+}
+
+/** Kuponki pisteiden mukaan (palkitsemiskonsepti – ei oikea S-Bonus-etu) */
+export function gameCoupon(points: number, max: number) {
+  const share = max > 0 ? points / max : 0;
+  if (share >= 0.9) return { level: 'Talousmestari', discount: 15 };
+  if (share >= 0.6) return { level: 'Talousosaaja', discount: 10 };
+  if (share >= 0.3) return { level: 'Talousoppija', discount: 5 };
+  return { level: 'Harjoittelija', discount: 2 };
 }
 
 export { incomeMonthly, rentMonthly, recurring };

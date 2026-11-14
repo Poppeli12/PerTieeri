@@ -22,7 +22,8 @@ const STATUS_URL = `https://${REF}.supabase.co/functions/v1/api/agent`;
 async function status() {
   const r = await fetch(STATUS_URL, { cache: 'no-store' });
   const j = await r.json();
-  return j.ai_enabled !== false;
+  if (!r.ok || typeof j.ai_enabled !== 'boolean') throw new Error(`Pilven tilaa ei voitu varmistaa (HTTP ${r.status}).`);
+  return j.ai_enabled;
 }
 
 const cmd = process.argv[2];

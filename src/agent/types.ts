@@ -29,7 +29,7 @@ export type Card =
       unit: string;
       note?: string;
     }
-  | { kind: 'game'; title: string; ym: string; questions: import('../finance/insights').GameQ[] }
+  | { kind: 'game'; id?: string; title: string; ym: string; questions: import('../finance/insights').GameQ[] }
   | { kind: 'chart'; title: string; chart: 'bar' | 'line' | 'pie'; unit: string; labels: string[]; series: { name: string; values: number[] }[]; note?: string; icon?: string; art?: string }
   | { kind: 'waterfall'; title: string; start: { label: string; value: number }; steps: { label: string; value: number; icon?: string }[]; end: { label: string; value: number }; note?: string }
   | { kind: 'bars'; title: string; rows: { label: string; value: number; peer?: number; key?: string }[]; note?: string };

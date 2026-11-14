@@ -113,6 +113,10 @@ npx expo start            # press w for web, or scan the QR code with Expo Go
 
 Checks: `npx tsc --noEmit` and `npx expo lint`.
 
+The personal game is opened by **Aloita peli**, which sends a normal chat message (`Haluan kokeilla peliä`). The LLM chooses `monthly_game`; free-form requests work through the same tool selection. It creates three multiple-choice questions and two open euro estimates from the selected customer's transactions. Answers and position use the existing customer memory; revisiting a question does not award points twice. The score-based coupon is a clearly labelled demo reward, not a redeemable discount.
+
+Game checks: `node scripts/test-game.js` (local customer datasets), `node scripts/test-sorting-motion.js`, and `node scripts/test-game-ui.js <web URL>` (mocked AI with real configured data/memory). Add `--live` only when an actual cloud AI test is intended; add `--paraphrase` to test free-form game intent. Live tests consume a small number of AI calls and create a fresh anonymous test session.
+
 ## Deploy
 
 ```bash

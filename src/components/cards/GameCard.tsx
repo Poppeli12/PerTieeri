@@ -1,186 +1,127 @@
-import React, { useEffect, useState } from 'react';
-import { Animated, Easing, Pressable, View } from 'react-native';
-import Svg, { Path, Rect, Text as SvgText } from 'react-native-svg';
+import React, { useState } from 'react';
+import { Animated, Pressable, StyleSheet, View } from 'react-native';
 import type { Card } from '../../agent/types';
-import type { GameQ } from '../../finance/insights';
-import { HandsUpIcon } from '../../icons';
+import { gameCoupon, gamePoints, parseGameAnswer } from '../../finance/insights';
+import { useStore } from '../../state/store';
 import { C } from '../../theme';
 import { PerTieeriPortrait } from '../PerTieeriPortrait';
-import { useK } from '../scale';
-import { S_PATH } from '../SLogo';
+import { PageArrow } from '../SuggestionPager';
 import { Text, TextInput } from '../Text';
+import { useSlideTransition } from '../useSlideTransition';
 
-/**
- * Kuukauden talouskoetus: asiakkaan omasta edellisestä kuukaudesta generoidut kysymykset.
- * Monivalinnat + numeroarviot (hyväksytään riittävän lähellä oleva vastaus), lyhyt opettava palaute,
- * Per Tieerin ilme reagoi. Lopussa S-Etukortin näköinen palkintokortti (KONSEPTI – ei oikea etu).
- */
+/** Questions and answers come from this customer's transactions. Progress uses existing customer memory. */
 export function GameCard({ card }: { card: Extract<Card, { kind: 'game' }> }) {
-  const k = useK();
+  const { quiz, setQuiz } = useStore();
   const qs = card.questions;
-  const [i, setI] = useState(0);
-  const [answer, setAnswer] = useState<string>('');
-  const [result, setResult] = useState<null | { ok: boolean; why: string }>(null);
-  const [score, setScore] = useState(0);
+  // Older saved cards did not have an ID. Their month and question values keep the fallback stable.
+  const id = card.id ?? `game-${card.ym}-${JSON.stringify(qs).split('').reduce((hash, c) => Math.imul(hash ^ c.charCodeAt(0), 16777619), 2166136261) >>> 0}`;
+  const answerKey = (index: number) => `${id}:${qs[index].id}`;
+  const answered = (index: number) => Number.isFinite(quiz[answerKey(index)]);
+  const firstUnanswered = qs.findIndex((_, index) => !answered(index));
+  const allDone = qs.length > 0 && firstUnanswered === -1;
+  const [index, setIndex] = useState(() => Math.max(0, Math.min(quiz[`${id}:page`] ?? (allDone ? qs.length : Math.max(0, firstUnanswered)), allDone ? qs.length : Math.max(0, firstUnanswered))));
+  const [drafts, setDrafts] = useState<Record<number, string>>({});
   const [skipped, setSkipped] = useState(false);
-  const done = i >= qs.length;
-  const q: GameQ | undefined = qs[i];
+  const motion = useSlideTransition();
+  const done = index >= qs.length && allDone;
+  const q = qs[index];
+  const result = q && answered(index) ? gamePoints(q, quiz[answerKey(index)]) : null;
+  const score = qs.reduce((sum, question, j) => sum + (answered(j) ? gamePoints(question, quiz[answerKey(j)]) : 0), 0);
+  const draft = drafts[index] ?? '';
+  const number = parseGameAnswer(draft);
 
   const check = (choice?: number) => {
-    if (!q || result) return;
-    let ok = false;
-    if (q.type === 'choice') ok = choice === q.correct;
-    else {
-      const v = parseFloat(answer.replace(/\s/g, '').replace(',', '.').replace(/[^\d.-]/g, ''));
-      ok = Number.isFinite(v) && Math.abs(v - q.answer) <= Math.max(10, Math.abs(q.answer) * q.tolerance);
-    }
-    if (ok) setScore((s) => s + 1);
-    setResult({ ok, why: q.why });
+    if (!q || result !== null || motion.busy) return;
+    const value = q.type === 'choice' ? choice : number;
+    if (value === null || value === undefined || !Number.isFinite(value)) return;
+    setQuiz(answerKey(index), value);
   };
-  const next = () => {
-    setResult(null);
-    setAnswer('');
-    setI((x) => x + 1);
+  const go = (direction: -1 | 1) => {
+    if ((direction < 0 && index === 0) || (direction > 0 && (result === null || done))) return;
+    motion.slide(direction, () => {
+      const next = index + direction;
+      setIndex(next);
+      setQuiz(`${id}:page`, next);
+    });
   };
 
-  if (skipped)
-    return (
-      <View style={{ backgroundColor: '#fff', borderRadius: 16 * k, padding: 22 * k, marginTop: 4 * k }}>
-        <Text style={{ fontSize: 19 * k, color: C.sub }}>Koetus ohitettu. Sen voi pyytää myöhemmin uudelleen.</Text>
-      </View>
-    );
+  if (!qs.length) return <View style={s.card}><Text style={s.body}>Tähän peliin ei ole riittävästi tilitapahtumia. Pyytäkää peli toiselta kuukaudelta.</Text></View>;
+  if (skipped) return <View style={s.card}><Text style={s.body}>Voitte palata koetukseen myöhemmin.</Text><Pressable accessibilityRole="button" onPress={() => setSkipped(false)} style={s.action}><Text style={s.actionText}>Jatka peliä</Text></Pressable></View>;
 
-  return (
-    <View style={{ backgroundColor: '#fff', borderRadius: 16 * k, padding: 22 * k, marginTop: 4 * k, overflow: 'hidden' }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-        <View style={{ width: 64 * k, height: 64 * k, borderRadius: 32 * k, backgroundColor: C.avatar, overflow: 'hidden', alignItems: 'center' }}>
-          <View style={{ marginTop: 4 * k }}>
-            <PerTieeriPortrait size={66 * k} />
-          </View>
-        </View>
-        <View style={{ flex: 1, marginLeft: 14 * k }}>
-          <Text style={{ fontSize: 22 * k, fontWeight: '700', color: C.text }}>{card.title}</Text>
-          <View style={{ flexDirection: 'row', gap: 6 * k, marginTop: 8 * k }}>
-            {qs.map((_, j) => (
-              <View key={j} style={{ flex: 1, height: 6 * k, borderRadius: 3 * k, backgroundColor: j < i || (j === i && result) ? C.greenDark : '#E3EAE5' }} />
-            ))}
-          </View>
+  return <View testID="finance-game" style={s.card}>
+    <View style={s.header}>
+      <PerTieeriPortrait size={52} />
+      <View style={{ flex: 1 }}>
+        <Text style={s.title}>{card.title}</Text>
+        <View style={s.progress} accessibilityLabel={`${qs.filter((_, j) => answered(j)).length}/${qs.length} kysymystä vastattu`}>
+          {qs.map((question, j) => <View key={question.id} style={[s.step, { backgroundColor: answered(j) ? C.greenDark : '#E3EAE5' }]} />)}
         </View>
       </View>
-
-      {!done && q && (
-        <View style={{ marginTop: 20 * k }}>
-          <Text style={{ fontSize: 15.5 * k, color: C.sub, marginBottom: 6 * k }}>
-            Kysymys {i + 1}/{qs.length}
-          </Text>
-          <Text style={{ fontSize: 21 * k, lineHeight: 29 * k, fontWeight: '600', color: C.text, marginBottom: 16 * k }}>{q.q}</Text>
-          {q.type === 'choice' ? (
-            q.options.map((o, j) => {
-              const show = !!result;
-              const right = j === q.correct;
-              return (
-                <Pressable
-                  key={j}
-                  disabled={!!result}
-                  onPress={() => check(j)}
-                  style={({ pressed }) => [
-                    {
-                      borderWidth: 2 * k,
-                      borderColor: show && right ? C.greenDark : '#D5DDD8',
-                      backgroundColor: show && right ? C.greenDark : '#fff',
-                      borderRadius: 14 * k,
-                      paddingVertical: 18 * k,
-                      paddingHorizontal: 20 * k,
-                      marginBottom: 10 * k,
-                    },
-                    pressed && { opacity: 0.75 },
-                  ]}
-                >
-                  <Text style={{ fontSize: 20 * k, fontWeight: '600', color: show && right ? '#fff' : C.text }}>{o}</Text>
-                </Pressable>
-              );
-            })
-          ) : (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 * k }}>
-              <View style={{ flex: 1, height: 64 * k, backgroundColor: '#F3F3F3', borderRadius: 32 * k, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 22 * k }}>
-                <TextInput value={answer} onChangeText={setAnswer} editable={!result} keyboardType="numeric" placeholder="Arvionne" placeholderTextColor="#8E8E8E" onSubmitEditing={() => check()} style={{ flex: 1, fontSize: 22 * k, color: C.text }} />
-                <Text style={{ fontSize: 22 * k, color: C.sub }}>{q.unit}</Text>
-              </View>
-              {!result && (
-                <Pressable onPress={() => check()} style={{ height: 64 * k, paddingHorizontal: 24 * k, borderRadius: 32 * k, backgroundColor: C.greenDark, justifyContent: 'center' }}>
-                  <Text style={{ color: '#fff', fontSize: 20 * k, fontWeight: '700' }}>Vastaa</Text>
-                </Pressable>
-              )}
-            </View>
-          )}
-          {result && (
-            <View style={{ marginTop: 14 * k, backgroundColor: result.ok ? C.mint : '#FFF6E8', borderRadius: 12 * k, padding: 16 * k }}>
-              <Text style={{ fontSize: 19 * k, lineHeight: 27 * k, color: C.text }}>
-                <Text style={{ fontWeight: '700', color: result.ok ? C.greenText : '#A86A12' }}>{result.ok ? 'Oikein! ' : 'Melkein. '}</Text>
-                {result.why}
-              </Text>
-              <Pressable onPress={next} style={{ alignSelf: 'flex-end', marginTop: 10 * k, paddingVertical: 10 * k, paddingHorizontal: 20 * k, borderRadius: 999, backgroundColor: C.greenDark }}>
-                <Text style={{ color: '#fff', fontSize: 18 * k, fontWeight: '700' }}>{i + 1 < qs.length ? 'Seuraava' : 'Katso tulos'}</Text>
-              </Pressable>
-            </View>
-          )}
-          {!result && i === 0 && (
-            <Pressable onPress={() => setSkipped(true)} hitSlop={8} style={{ alignSelf: 'center', marginTop: 12 * k }}>
-              <Text style={{ fontSize: 17 * k, color: C.greenText, textDecorationLine: 'underline' }}>Ohita koetus</Text>
-            </Pressable>
-          )}
-        </View>
-      )}
-
-      {done && <Reward k={k} score={score} total={qs.length} />}
     </View>
-  );
+    {!done && <Text style={[s.body, { marginTop: 14, color: C.sub }]}>Kolme monivalintaa ja kaksi omaa euroarviota tilitapahtumistanne. Lopuksi saatte pisteet ja demokupongin. Kuponki ei ole lunastettava etu.</Text>}
+    <Animated.View testID="game-page" style={motion.style}>
+      {!done && q && <View style={{ marginTop: 20, gap: 12 }}>
+        <Text style={s.label}>Kysymys {index + 1}/{qs.length} · {q.type === 'choice' ? 'Monivalinta' : 'Oma euroarvio'}</Text>
+        <Text accessibilityRole="header" style={s.question}>{q.q}</Text>
+        {q.type === 'choice' ? q.options.map((option, j) => {
+          const right = result !== null && j === q.correct;
+          const selected = result !== null && quiz[answerKey(index)] === j;
+          return <Pressable key={option} accessibilityRole="button" accessibilityState={{ disabled: result !== null || motion.busy, selected }} disabled={result !== null || motion.busy} onPress={() => check(j)}
+            style={({ pressed }) => [s.option, right && { backgroundColor: C.greenDark, borderColor: C.greenDark }, selected && !right && { borderColor: '#A86A12', backgroundColor: '#FFF6E8' }, pressed && { opacity: 0.7 }]}>
+            <Text style={[s.body, { color: right ? '#fff' : C.text, fontWeight: '600' }]}>{option}{selected ? ' · Oma vastaus' : ''}{right ? ' · Oikein' : ''}</Text>
+          </Pressable>;
+        }) : <View style={{ gap: 10 }}>
+          <Text style={s.body}>Kirjoittakaa arvio euroina. Lähelle osumisestakin saa pisteitä.</Text>
+          <TextInput accessibilityLabel="Oma arvio euroina" value={result !== null ? String(quiz[answerKey(index)]).replace('.', ',') : draft} onChangeText={text => setDrafts(previous => ({ ...previous, [index]: text }))} editable={result === null && !motion.busy} keyboardType="decimal-pad" placeholder="Esimerkiksi 100" placeholderTextColor={C.sub} onSubmitEditing={() => check()} style={s.input} />
+          {result === null && <Pressable accessibilityRole="button" disabled={number === null || motion.busy} onPress={() => check()} style={[s.action, (number === null || motion.busy) && { backgroundColor: '#C9D3CD' }]}><Text style={s.actionText}>Vastaa</Text></Pressable>}
+        </View>}
+        {result !== null && <View accessibilityLiveRegion="polite" style={[s.feedback, { backgroundColor: result > 0 ? C.mint : '#FFF6E8' }]}>
+          <Text style={[s.body, { fontWeight: '700', color: C.greenText }]}>{result === 2 ? (q.type === 'choice' ? 'Oikein!' : 'Hyvin arvioitu!') : result === 1 ? 'Lähellä!' : 'Tästä opimme.'} {result}/2 pistettä</Text>
+          <Text style={s.body}>{q.why}</Text>
+        </View>}
+      </View>}
+      {done && <Reward score={score} total={qs.length * 2} />}
+    </Animated.View>
+    <View style={s.navigation}>
+      <PageArrow direction={-1} disabled={index === 0 || motion.busy} label="Edellinen kysymys" onPress={() => go(-1)} />
+      <Text style={[s.body, { flex: 1, textAlign: 'center', color: C.sub }]}>{done ? 'Vastauksia voi vielä selata' : result === null ? 'Vastatkaa ensin' : index + 1 === qs.length ? 'Katso tulos' : 'Seuraava kysymys'}</Text>
+      <PageArrow direction={1} disabled={done || result === null || motion.busy} label={index + 1 === qs.length ? 'Katso tulos' : 'Seuraava kysymys'} onPress={() => go(1)} />
+    </View>
+    {!done && <Pressable accessibilityRole="button" onPress={() => setSkipped(true)} style={{ padding: 12, alignSelf: 'center' }}><Text style={[s.body, { color: C.greenText, textDecorationLine: 'underline' }]}>Jatkan myöhemmin</Text></Pressable>}
+  </View>;
 }
 
-/** Animoitu S-Etukortin näköinen palkintokortti (liukuu esiin ja kääntyy) */
-function Reward({ k, score, total }: { k: number; score: number; total: number }) {
-  const [v] = useState(() => new Animated.Value(0));
-  const passed = score >= Math.ceil(total * 0.6);
-  useEffect(() => {
-    Animated.sequence([Animated.delay(200), Animated.timing(v, { toValue: 1, duration: 900, easing: Easing.out(Easing.back(1.4)), useNativeDriver: true })]).start();
-  }, [v]);
-  const W = 300 * k;
-  const H = W * 0.63;
-  const sc = 0.15;
-  return (
-    <View style={{ alignItems: 'center', marginTop: 22 * k }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 * k }}>
-        {passed && <HandsUpIcon size={34 * k} />}
-        <Text style={{ fontSize: 24 * k, fontWeight: '700', color: C.greenText }}>
-          {score}/{total} oikein
-        </Text>
-      </View>
-      <Text style={{ fontSize: 18 * k, lineHeight: 26 * k, color: C.sub, textAlign: 'center', marginTop: 6 * k, marginBottom: 18 * k }}>
-        {passed ? 'Tunnette taloutenne erinomaisesti.' : 'Hyvä alku – ensi kuussa tunnette luvut vielä paremmin.'}
-      </Text>
-      <Animated.View
-        style={{
-          opacity: v,
-          transform: [{ translateY: v.interpolate({ inputRange: [0, 1], outputRange: [40 * k, 0] }) }, { perspective: 800 }, { rotateY: v.interpolate({ inputRange: [0, 1], outputRange: ['70deg', '0deg'] }) }, { scale: v.interpolate({ inputRange: [0, 1], outputRange: [0.85, 1] }) }],
-        }}
-      >
-        <Svg width={W} height={H} viewBox="0 0 300 189">
-          <Rect x={0} y={0} width={300} height={189} rx={14} fill={passed ? '#00AE42' : '#9AA39E'} />
-          <SvgText x={20} y={30} fill="#fff" fontSize={15} fontFamily="Figtree-700">
-            S-ETUKORTTI
-          </SvgText>
-          <Path d={S_PATH} transform={`translate(${210 - 171 * sc} ${100 - 183.5 * sc}) scale(${sc})`} stroke="#fff" strokeWidth={19} fill="none" />
-          <SvgText x={20} y={118} fill="#fff" fontSize={26} fontFamily="Figtree-800">
-            {passed ? 'Talousosaaja' : 'Harjoittelija'}
-          </SvgText>
-          <SvgText x={20} y={144} fill="#fff" fontSize={13} fontFamily="Figtree-500">
-            {passed ? 'Kuukauden koetus läpäisty' : `${score}/${total} oikein`}
-          </SvgText>
-          <SvgText x={20} y={174} fill="#fff" fontSize={11} fontFamily="Figtree-500" opacity={0.85}>
-            Palkitsemiskonsepti – ei oikea S-Bonus-etu
-          </SvgText>
-        </Svg>
-      </Animated.View>
+function Reward({ score, total }: { score: number; total: number }) {
+  const coupon = gameCoupon(score, total);
+  return <View testID="game-reward" style={{ gap: 14, marginTop: 22 }}>
+    <Text style={s.question}>Koetus valmis!</Text>
+    <Text style={[s.title, { fontSize: 30 }]}>{score}/{total} pistettä</Text>
+    <Text style={s.body}>Pisteet kertovat tämän koetuksen vastauksista. Tärkeintä on, että opitte huomaamaan oman taloutenne tapoja.</Text>
+    <View testID="game-coupon" style={s.coupon}>
+      <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700' }}>PER TIEERI · DEMOKUPONKI</Text>
+      <Text style={{ color: '#fff', fontSize: 42, fontWeight: '800' }}>{coupon.discount} %</Text>
+      <Text style={{ color: '#fff', fontSize: 23, fontWeight: '700' }}>{coupon.level}</Text>
+      <View style={{ borderTopColor: '#A9D4BB', borderTopWidth: 1, borderStyle: 'dashed', marginVertical: 6 }} />
+      <Text style={{ color: '#fff', fontSize: 16, lineHeight: 23 }}>Harjoittelupalkinto. Ei oikea alennus, S-Bonus-etu tai lunastettava kuponki.</Text>
     </View>
-  );
+    <Text style={[s.body, { color: C.sub }]}>Pisteet 0–2: 2 % · 3–5: 5 % · 6–8: 10 % · 9–10: 15 %. Jokaisesta kysymyksestä saa enintään 2 pistettä.</Text>
+  </View>;
 }
+
+const s = StyleSheet.create({
+  card: { backgroundColor: '#fff', borderRadius: 18, padding: 18, marginTop: 4, overflow: 'hidden' },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  title: { fontSize: 21, lineHeight: 27, fontWeight: '700', color: C.greenText },
+  progress: { flexDirection: 'row', gap: 6, marginTop: 10 },
+  step: { flex: 1, height: 6, borderRadius: 3 },
+  body: { fontSize: 17, lineHeight: 25, color: C.text },
+  label: { fontSize: 16, color: C.sub, fontWeight: '600' },
+  question: { fontSize: 21, lineHeight: 29, fontWeight: '700', color: C.text },
+  option: { padding: 16, minHeight: 52, borderRadius: 14, borderWidth: 1.5, borderColor: '#D5DDD8' },
+  input: { fontSize: 22, color: C.text, minHeight: 56, paddingHorizontal: 18, paddingVertical: 12, borderRadius: 14, backgroundColor: '#F3F3F3' },
+  action: { backgroundColor: C.greenDark, padding: 14, borderRadius: 28, minHeight: 48, alignItems: 'center' },
+  actionText: { fontSize: 17, fontWeight: '700', color: '#fff' },
+  feedback: { padding: 16, borderRadius: 14, gap: 8 },
+  navigation: { flexDirection: 'row', gap: 10, alignItems: 'center', marginTop: 20 },
+  coupon: { backgroundColor: C.greenDark, padding: 22, borderRadius: 18, gap: 8 },
+});

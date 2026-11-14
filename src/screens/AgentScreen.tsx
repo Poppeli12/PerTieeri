@@ -12,7 +12,8 @@ import { Text, TextInput } from '../components/Text';
 import { FadeIn } from '../components/ui';
 import { RichBlocks } from '../components/RichBlocks';
 import { SafeBoundary } from '../components/SafeBoundary';
-import { displayFor, useStore } from '../state/store';
+import { useStore } from '../state/store';
+import { GAME_PROMPT, SuggestionPager } from '../components/SuggestionPager';
 import { C } from '../theme';
 import { SortingScene } from '../components/buckets/SortingScene';
 
@@ -31,7 +32,7 @@ const STARTERS = [
 
 /** Kokeiltavia aloituksia (tuomareille ja käyttäjille) – Per Tieeri ratkaisee ne vapaasti työkaluillaan. */
 const TRY_THESE = [
-  'Kokeile kuukauden talouspeliä',
+  GAME_PROMPT,
   'Näytä ympyrädiagrammi kulutuksestani viime kuussa',
   'Mihin viimeiset 1 000 euroa menivät?',
   'Voinko ostaa 700 € tietokoneen ensi viikolla?',
@@ -102,14 +103,10 @@ function Chat({ k }: { k: number }) {
   // Esimerkkiviestit kirjoituskentän yläpuolella: Per Tieerin omat jatkoehdotukset, muuten 2 esimerkkiä.
   // Enintään 2, jotta teksti mahtuu kokonaan näkyviin.
   const lastBot = [...messages].reverse().find((m) => m.from === 'bot');
-  const [examples] = useState(() => [...TRY_THESE].sort(() => Math.random() - 0.5));
+  const [examples] = useState(() => [GAME_PROMPT, ...TRY_THESE.filter(t => t !== GAME_PROMPT).sort(() => Math.random() - 0.5)]);
   const allChips = typing ? [] : lastBot?.chips?.length ? lastBot.chips : examples;
-  // nuolella seuraavat 2 ehdotusta (toimii myös mobiilissa); uusi vastaus aloittaa alusta
-  const [chipPage, setChipPage] = useState({ key: '', page: 0 });
+  // Uusi vastaus aloittaa ehdotusten selauksen ensimmäiseltä sivulta.
   const chipKey = lastBot?.id ?? 'examples';
-  const page = chipPage.key === chipKey ? chipPage.page : 0;
-  const pages = Math.max(1, Math.ceil(allChips.length / 2));
-  const chips = allChips.slice((page % pages) * 2, (page % pages) * 2 + 2);
 
   const hasUserMessage = messages.some((message) => message.from === 'user');
   const latestHasChart = messages[messages.length - 1]?.from === 'bot' && !!messages[messages.length - 1]?.cards?.length;
@@ -162,37 +159,7 @@ function Chat({ k }: { k: number }) {
       </View>
 
       {/* ehdotukset */}
-      {chips.length > 0 && (
-        <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: SM.margin * k, paddingBottom: 12 * k, paddingTop: 6 * k, gap: 10 * k }}>
-        <View style={{ flex: 1, gap: 10 * k }}>
-          {chips.map((c) => (
-            <Pressable
-              key={c}
-              onPress={() => submit(c)}
-              style={({ pressed }) => [
-                { alignSelf: 'flex-start', maxWidth: '100%', borderWidth: 2 * k, borderColor: C.greenDark, backgroundColor: c.startsWith('§save') ? C.greenDark : '#fff', borderRadius: 22 * k, paddingHorizontal: 20 * k, paddingVertical: 10 * k },
-                pressed && { opacity: 0.7 },
-              ]}
-            >
-              <Text style={{ fontSize: 20 * k, fontWeight: '600', color: c.startsWith('§save') ? '#fff' : C.greenText }}>
-                {displayFor(c)}
-              </Text>
-            </Pressable>
-          ))}
-        </View>
-        {pages > 1 && (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Näytä muita ehdotuksia"
-            hitSlop={8}
-            onPress={() => setChipPage({ key: chipKey, page: page + 1 })}
-            style={({ pressed }) => [{ width: 52 * k, height: 52 * k, borderRadius: 26 * k, backgroundColor: C.greenDark, alignItems: 'center', justifyContent: 'center' }, pressed && { opacity: 0.8 }]}
-          >
-            <Chevron size={26 * k} color="#fff" />
-          </Pressable>
-        )}
-        </View>
-      )}
+      <SuggestionPager key={chipKey} items={allChips} onSend={submit} />
 
       {/* kirjoituskenttä */}
       {/* alareunaan tilaa alapalkin pyöreille napeille, jotka nousevat palkin yli */}
@@ -227,11 +194,11 @@ function Chat({ k }: { k: number }) {
 /** Esittelyn hahmoalue: perusanimaationa kuittien lajittelu; selvissä tunteissa hetkeksi tunneasento. */
 function HeroStage({ k, active }: { k: number; active: boolean }) {
   const reaction = useReaction();
-  const [shown, setShown] = useState<{ emotion: EmotionName; key: string } | null>(null);
+  const [expiredKey, setExpiredKey] = useState('');
+  const shown = reaction && STRONG.has(reaction.emotion) && reaction.key !== expiredKey ? reaction : null;
   useEffect(() => {
     if (!reaction || !STRONG.has(reaction.emotion)) return;
-    setShown(reaction);
-    const t = setTimeout(() => setShown(null), 6000);
+    const t = setTimeout(() => setExpiredKey(reaction.key), 6000);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reaction?.key]);
@@ -273,10 +240,11 @@ function Welcome({ k, active, onAsk }: { k: number; active: boolean; onAsk: (q: 
         {TRY_THESE.map((t) => (
           <Pressable
             key={t}
+            accessibilityRole="button"
             onPress={() => onAsk(t)}
-            style={({ pressed }) => [{ borderWidth: 2 * k, borderColor: C.greenDark, borderRadius: 10 * k, paddingVertical: 15 * k, paddingHorizontal: 18 * k, backgroundColor: pressed ? C.mint : '#fff' }]}
+            style={({ pressed }) => [{ borderWidth: 2 * k, borderColor: C.greenDark, borderRadius: 10 * k, paddingVertical: 15 * k, paddingHorizontal: 18 * k, backgroundColor: t === GAME_PROMPT ? C.greenDark : '#fff', opacity: pressed ? 0.7 : 1 }]}
           >
-            <Text style={{ fontSize: 19 * k, lineHeight: 26 * k, fontWeight: '600', color: C.greenText }}>{t}</Text>
+            <Text style={{ fontSize: Math.max(17, 19 * k), lineHeight: Math.max(24, 26 * k), fontWeight: '600', color: t === GAME_PROMPT ? '#fff' : C.greenText }}>{t === GAME_PROMPT ? 'Aloita peli' : t}</Text>
           </Pressable>
         ))}
       </View>
