@@ -110,8 +110,9 @@ async function agent(req: Request) {
   // Ensimmäinen tarkistus: kun demo-AI on pois päältä, mitään ei välitetä OpenAI:lle (ei istuntoa, kiintiötä eikä kutsua).
   if (!aiEnabled()) return json(403, { error: 'Per Tieeri on tauolla', ai_enabled: false });
   if (req.headers.get('x-per-tieeri') !== '1') return json(403, { error: 'kielletty' });
-  const userId = await userFrom(req);
-  if (!userId) return json(401, { error: 'istunto puuttuu' });
+  // Istuntoa ei enää vaadita: jos anonyymi kirjautuminen epäonnistuu (esim. Supabasen IP-kohtainen raja,
+  // kun moni arvioija käyttää samaa verkkoa), agentin pitää silti vastata.
+  void userFrom;
   const now = Date.now();
   // Käyttörajat poistettu demoa varten (minuutti-, käyttäjä- ja päivärajat): agentti ei saa jumittua.
   // Pääkytkin DEMO_AI_ENABLED ja istuntovaatimus säilyvät.
