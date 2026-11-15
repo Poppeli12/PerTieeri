@@ -38,10 +38,10 @@ function Shell() {
   // alinäkymät, jotka peittävät myös alapalkin (kuten S-mobiilissa)
   const [sub, setSub] = useState<null | 'card' | 'payee' | 'picker'>(null);
 
-  const openAgent = (q?: string) => {
+  const openAgent = (q?: string, display?: string) => {
     setPlus(false);
     setTab('agent');
-    if (q) st.send(q);
+    if (q) st.send(q, display);
   };
 
   if (!st.ready || st.switching || (!fontsLoaded && !fontError))

@@ -103,12 +103,16 @@ function Chat({ k }: { k: number }) {
   const initialCount = useRef(messages.length);
   const initialScroll = useRef(scrollY);
   const restored = useRef(false);
+  const scrolledTo = useRef(new Set<string>());
   const previousCount = useRef(messages.length);
   // Esimerkkiviestit kirjoituskentän yläpuolella: Per Tieerin omat jatkoehdotukset, muuten 2 esimerkkiä.
   // Enintään 2, jotta teksti mahtuu kokonaan näkyviin.
   const lastBot = [...messages].reverse().find((m) => m.from === 'bot');
   const [examples] = useState(() => [GAME_PROMPT, ...TRY_THESE.filter(t => t !== GAME_PROMPT).sort(() => Math.random() - 0.5)]);
-  const allChips = typing ? [] : lastBot?.chips?.length ? lastBot.chips : lastBot ? examples.filter(c => c !== GRID_PROMPT) : examples;
+  // Kun peli on kerran aloitettu tai pelattu, sen aloitusta ei enää tarjota vaihtoehdoissa
+  const gameStarted = messages.some((m) => m.cards?.some((c) => c.kind === 'game'));
+  const offer = (list: string[]) => (gameStarted ? list.filter((t) => t !== GAME_PROMPT && !/talouspeli|peliä/i.test(t)) : list);
+  const allChips = offer(typing ? [] : lastBot?.chips?.length ? lastBot.chips : lastBot ? examples.filter(c => c !== GRID_PROMPT) : examples);
   // Uusi vastaus aloittaa ehdotusten selauksen ensimmäiseltä sivulta.
   const chipKey = lastBot?.id ?? 'examples';
 
@@ -149,10 +153,13 @@ function Chat({ k }: { k: number }) {
           setDeskVisible(y < 570 * k);
           if (restored.current) setScrollY(y);
         }}>
-        <Welcome k={k} active={deskVisible} onAsk={submit} />
+        <Welcome k={k} active={deskVisible} onAsk={submit} hideGame={gameStarted} />
         {shown.map((m, i) => (
           <View key={m.id} onLayout={event => {
-            if (messages.length > initialCount.current && hasUserMessage && m.id === messages[messages.length - 1]?.id && m.from === 'bot' && m.cards?.length) {
+            // Uuden kaaviovastauksen alkuun vieritetään vain KERRAN. Kortin koon muuttuminen myöhemmin
+            // (esim. pelin seuraava kysymys) ei saa siirtää näkymää.
+            if (messages.length > initialCount.current && hasUserMessage && m.id === messages[messages.length - 1]?.id && m.from === 'bot' && m.cards?.length && !scrolledTo.current.has(m.id)) {
+              scrolledTo.current.add(m.id);
               scroll.current?.scrollTo({ y: event.nativeEvent.layout.y, animated: true });
             }
           }}><SafeBoundary><Bubble k={k} m={m} first={m.from === 'bot' && shown[i - 1]?.from !== 'bot'} /></SafeBoundary></View>
@@ -216,7 +223,7 @@ function HeroStage({ k, active }: { k: number; active: boolean }) {
 }
 
 /** Iso esittelyviesti: hahmo + tervehdys + aloituskysymykset S-mobiilin listariveinä */
-function Welcome({ k, active, onAsk }: { k: number; active: boolean; onAsk: (q: string) => void }) {
+function Welcome({ k, active, onAsk, hideGame }: { k: number; active: boolean; onAsk: (q: string) => void; hideGame?: boolean }) {
   return (
     <SCard>
       <View style={{ paddingTop: 22 * k, paddingHorizontal: 22 * k, backgroundColor: '#fff' }}>
@@ -241,7 +248,7 @@ function Welcome({ k, active, onAsk }: { k: number; active: boolean; onAsk: (q: 
       <View style={{ height: 1.5 * k, backgroundColor: C.divider }} />
       <View style={{ padding: 22 * k, gap: 12 * k }}>
         <Text style={{ fontSize: 21 * k, fontWeight: '700', color: C.greenText, marginBottom: 2 * k }}>Kokeile esimerkiksi</Text>
-        {TRY_THESE.map((t) => (
+        {TRY_THESE.filter((t) => !hideGame || t !== GAME_PROMPT).map((t) => (
           <Pressable
             key={t}
             accessibilityRole="button"

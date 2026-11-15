@@ -156,11 +156,20 @@ const hh = StyleSheet.create({
   row: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
 });
 
-export function HomeScreen({ openAgent }: { openAgent: (q?: string) => void }) {
-  const { answers, unread } = useStore();
+export function HomeScreen({ openAgent }: { openAgent: (q?: string, display?: string) => void }) {
+  const { answers } = useStore();
   const [hidden, setHidden] = useState(false);
   const k = useK();
-  const n = anomalies(answers).length;
+  // Per Tieerin OIKEAT havainnot tästä asiakkaasta: määrä ja otsikot tulevat suoraan datasta
+  const found = anomalies(answers);
+  const n = found.length;
+  const askAboutFindings = () => {
+    const list = found.map((a, i) => `${i + 1}) ${a.title}: ${a.detail}`).join('\n');
+    openAgent(
+      `Kerro ne ${n} asiaa, jotka huomasit taloudestani. Käsittele jokainen omana numeroituna kohtanaan: mitä huomasit, mitä se tarkoittaa minulle ja mitä voisin tehdä. Tarkista luvut työkaluilla.\n\nSovelluksen havainnot:\n${list}`,
+      `Kerro ne ${n} asiaa, jotka huomasit taloudestani`,
+    );
+  };
   const lastGrocery = [...txs()].reverse().find((t) => t.c === 'Groceries')!;
   const card = { marginHorizontal: 31 * k, borderRadius: 16 * k, backgroundColor: '#fff', overflow: 'hidden' as const };
   const body = { fontSize: 25 * k, color: C.text };
@@ -197,14 +206,14 @@ export function HomeScreen({ openAgent }: { openAgent: (q?: string) => void }) {
       </View>
 
       {/* Per Tieeri -nosto (S-mobiilin korttityyliin: valkoinen kortti, vihreä pyöreä hahmo) */}
-      <SCard onPress={() => openAgent()} style={{ marginTop: 20 * k, flexDirection: 'row', alignItems: 'center', padding: 22 * k }}>
+      {n > 0 && <SCard onPress={askAboutFindings} style={{ marginTop: 20 * k, flexDirection: 'row', alignItems: 'center', padding: 22 * k }}>
         <PerTieeriHead size={64 * k} round />
         <View style={{ flex: 1, marginLeft: 20 * k }}>
-          <Text style={{ fontSize: 23 * k, fontWeight: '700', color: C.greenText }}>Per Tieeri huomasi {Math.max(n, unread)} asiaa</Text>
-          <Text style={{ fontSize: 18 * k, lineHeight: 24 * k, color: C.sub, marginTop: 2 * k }}>Ennakkovaroitus, epäselvä veloitus ja viikon katsaus odottavat</Text>
+          <Text style={{ fontSize: 23 * k, fontWeight: '700', color: C.greenText }}>Per Tieeri huomasi {n} {n === 1 ? 'asian' : 'asiaa'}</Text>
+          <Text numberOfLines={2} style={{ fontSize: 18 * k, lineHeight: 24 * k, color: C.sub, marginTop: 2 * k }}>{found.slice(0, 2).map((a) => a.title).join(' · ')}</Text>
         </View>
         <Chevron size={26 * k} color="#1E1E1E" />
-      </SCard>
+      </SCard>}
 
       <SHeading link="Avaa">Edut ja vinkit</SHeading>
       {[
