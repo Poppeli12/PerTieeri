@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { AccessibilityInfo, Animated, Easing, Image, View } from 'react-native';
 import Svg, { Path, Rect } from 'react-native-svg';
 import { addDays, eur0, fmtDay, labelOf, TODAY, txs } from '../../finance/analytics';
-import { Basket, basketOf } from '../../finance/categories';
+import { Basket, basketOf, CAT_FI, MCC_FI } from '../../finance/categories';
+import type { Tx } from '../../finance/analytics';
 import { paymentKey, paymentPatterns, type PaymentPattern } from '../../finance/paymentPatterns';
 import { C } from '../../theme';
 import { useK } from '../scale';
@@ -21,6 +22,30 @@ const SCENES: Record<Basket, { img: any; aspect: number; hand: { x: number; y: n
 };
 const STEP = 3200; // ms per kuitti
 const PER_BUCKET = 3;
+
+/** Luokat, joiden kori on varma pelkästä luokasta (toimialakoodi ei muuta koria). */
+const BASKET_BY_CATEGORY_ONLY = new Set(['Housing', 'Utilities', 'Groceries', 'Health', 'Restaurants', 'Entertainment', 'Lifestyle', 'Travel', 'Subscriptions']);
+
+/**
+ * Lajitellaan VAIN tapahtumat, joiden laji on asiakkaan tiedoista varma:
+ *  - vuokra ja laskut maksutyypin perusteella
+ *  - ostot, joilla on tunnettu toimialakoodi (esim. "Taksit" vain, kun koodi on taksi 4121)
+ *  - koodittomat ostot vain luokissa, joissa kori ei riipu toimialakoodista
+ * Epävarmat (esim. liikkuminen tai koti ja tekniikka ilman toimialakoodia) jätetään pois.
+ */
+function certainBasket(t: Tx): Basket | null {
+  if (t.demo) return null;
+  if (t.ty === 'housing_payment' || t.ty === 'utilities_payment') return 'regular';
+  if (t.ty !== 'purchase') return null;
+  if (t.mcc && MCC_FI[t.mcc]) return basketOf(t.c, t.mcc);
+  return BASKET_BY_CATEGORY_ONLY.has(t.c) ? basketOf(t.c, null) : null;
+}
+function certainLabel(t: Tx): string {
+  if (t.ty === 'housing_payment') return 'Asumismaksu';
+  if (t.ty === 'utilities_payment') return 'Asumisen lasku';
+  if (t.mcc && MCC_FI[t.mcc]) return MCC_FI[t.mcc];
+  return CAT_FI[t.c] ?? labelOf(t);
+}
 
 type Receipt = { key: string; label: string; date: string; amount: number; basket: Basket; pattern: string };
 
@@ -46,9 +71,9 @@ function randomRound(): Receipt[] {
   const status = new Map(paymentPatterns(all, from, TODAY, 12).map((p) => [p.key, p.status]));
   all.forEach((t, idx) => {
     if (t.d < from || t.a >= 0) return;
-    const b = basketOf(t.c, t.mcc);
+    const b = certainBasket(t);
     if (!b) return;
-    pools[b].push({ key: `${t.d}-${t.t}-${idx}`, label: labelOf(t), date: t.d, amount: -t.a, basket: b, pattern: PATTERN_FI[status.get(paymentKey(t)) ?? 'uncertain'] });
+    pools[b].push({ key: `${t.d}-${t.t}-${idx}`, label: certainLabel(t), date: t.d, amount: -t.a, basket: b, pattern: PATTERN_FI[status.get(paymentKey(t)) ?? 'uncertain'] });
   });
   const pick: Record<Basket, Receipt[]> = { regular: [], irregular: [], slipping: [] };
   (Object.keys(pools) as Basket[]).forEach((b) => {

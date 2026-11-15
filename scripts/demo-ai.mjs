@@ -44,6 +44,13 @@ const r = await fetch(`https://api.supabase.com/v1/projects/${REF}/secrets`, {
   body: JSON.stringify([{ name: 'DEMO_AI_ENABLED', value: want ? 'true' : 'false' }]),
 });
 if (!r.ok) throw new Error(`Supabase ei hyväksynyt muutosta: ${r.status} ${await r.text()}`);
+// Sama asetus myös paikalliselle kehityspalvelimelle (.env.local), jottei se ohita kytkintä
+{
+  const file = path.join(ROOT, '.env.local');
+  const text = fs.readFileSync(file, 'utf8');
+  const line = `DEMO_AI_ENABLED=${want ? 'true' : 'false'}`;
+  fs.writeFileSync(file, /^DEMO_AI_ENABLED=.*$/m.test(text) ? text.replace(/^DEMO_AI_ENABLED=.*$/m, line) : `${text.replace(/\s*$/, '')}\n${line}\n`);
+}
 // Funktiot ottavat uuden arvon käyttöön hetken kuluttua: odotetaan, että pilvi vastaa oikein.
 for (let i = 0; i < 30; i++) {
   if ((await status()) === want) {

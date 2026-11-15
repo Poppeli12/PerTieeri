@@ -1,6 +1,5 @@
 import { StatusBar } from 'expo-status-bar';
-import React, { useEffect, useState } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import React, { useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, StyleSheet, UIManager, useWindowDimensions, View } from 'react-native';
 import { FRAME_H, FRAME_W, useFramed } from './src/components/scale';
 import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -22,26 +21,12 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
-const TAB_KEY = 'pt:activeTab';
-const TABS: Tab[] = ['home', 'card', 'agent', 'bank', 'me'];
-
 function Shell() {
   const st = useStore();
   const [fontsLoaded, fontError] = useFonts(FONT_MAP);
   const insets = useSafeAreaInsets();
-  const [tab, setTabState] = useState<Tab>('home');
-  // avoin välilehti säilyy myös uudelleenlatauksen yli: chatista ei pudota Koti-sivulle
-  const setTab = (t: Tab) => {
-    setTabState(t);
-    AsyncStorage.setItem(TAB_KEY, t).catch(() => {});
-  };
-  useEffect(() => {
-    AsyncStorage.getItem(TAB_KEY)
-      .then((t) => {
-        if (t && TABS.includes(t as Tab)) setTabState(t as Tab);
-      })
-      .catch(() => {});
-  }, []);
+  // Sovellus aukeaa aina Minä-sivulle (asiakkaan valinta ja profiili ensimmäisenä)
+  const [tab, setTab] = useState<Tab>('me');
   const [plus, setPlus] = useState(false);
   // suljettu/avattu asiakaskohtaisesti: uusi asiakas → ilmoitus voi näkyä taas
   const [nudgeClosedFor, setNudgeClosedFor] = useState<string | null>(null);

@@ -46,6 +46,8 @@ async function agent(req, res) {
   if (req.method === 'GET') return send(res, 200, { ok: !!process.env.OPENAI_API_KEY, model: process.env.OPENAI_MODEL || 'gpt-6-luna' });
   if (req.method !== 'POST') return send(res, 405, { error: 'POST' });
   if (req.headers['x-per-tieeri'] !== '1') return send(res, 403, { error: 'kielletty' });
+  // Sama pääkytkin kuin pilvessä (.env.local: DEMO_AI_ENABLED=false → agentti tauolla, OpenAI:ta ei kutsuta)
+  if (['false', '0', 'off', 'no'].includes(String(process.env.DEMO_AI_ENABLED || 'true').trim().toLowerCase())) return send(res, 403, { error: 'Per Tieeri on tauolla', ai_enabled: false });
   const now = Date.now();
   while (hits.length && now - hits[0] > 60000) hits.shift();
   if (hits.length >= RATE) return send(res, 429, { error: 'liikaa pyyntöjä, odota hetki' });
