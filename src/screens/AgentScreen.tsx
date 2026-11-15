@@ -31,6 +31,8 @@ const STARTERS = [
   'Riittävätkö rahani tuleviin laskuihin ja menoihin?',
   'Mistä menoistani voisin säästää 100 € kuukaudessa?',
   GRID_PROMPT,
+  'Mitä pankki katsoo asuntolainassa, ja miltä minun lukuni näyttävät siihen verrattuna?',
+  'Kerro asuntolainahakemuksestani: miksi se hyväksyttiin tai hylättiin?',
 ];
 
 /** Kokeiltavia aloituksia (tuomareille ja käyttäjille) – Per Tieeri ratkaisee ne vapaasti työkaluillaan. */
@@ -52,6 +54,7 @@ const TRY_THESE = [
   'Selitä hätärahasto ja näytä, mitä se tarkoittaisi minun taloudessani',
   'Miksi 1 500 € tilillä ei tarkoita, että voin käyttää 1 500 €?',
   'Kulutanko ravintoloihin enemmän kuin muut ikäiseni?',
+  'Paljonko omarahoitusta tarvitsisin asuntolainaan?',
 ];
 
 export function AgentScreen() {

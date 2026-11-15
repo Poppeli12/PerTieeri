@@ -261,7 +261,7 @@ function CompareCard({ card }: { card: Extract<Card, { kind: 'compare' }> }) {
       <View style={{ borderTopWidth: 1.5 * k, borderTopColor: C.divider, paddingTop: 12 * k, gap: 4 * k }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 * k }}>
           <View style={{ width: 22 * k, height: 10 * k, borderRadius: 5 * k, backgroundColor: C.greenDark }} />
-          <Text style={{ fontSize: Math.max(16, 15.5 * k), color: C.text }}>Sinä</Text>
+          <Text style={{ fontSize: Math.max(16, 15.5 * k), color: C.text }}>Te</Text>
           <View style={{ width: 3 * k, height: 16 * k, backgroundColor: '#2B2B2B', marginLeft: 10 * k }} />
           <Text style={{ fontSize: Math.max(16, 15.5 * k), color: C.text, flex: 1 }}>{card.statistic}</Text>
         </View>

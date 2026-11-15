@@ -1,5 +1,5 @@
 import { getJson } from '../data/api';
-import { addDays, eur, eur0, labelOf, merchantName, MORTGAGE, safeToSpend, TODAY, txs } from '../finance/analytics';
+import { addDays, BALANCE_NOW, eur, eur0, labelOf, merchantName, MORTGAGE, safeToSpend, TODAY, txs } from '../finance/analytics';
 import { CAT_FI } from '../finance/categories';
 import { compareFinland, FINLAND_CATEGORIES } from './finland';
 import type { AgentCtx, Card } from './types';
@@ -311,14 +311,36 @@ export async function runAsyncTool(name: string, a: any, ctx: AgentCtx, customer
         kaikki_mediaani: stats.all,
         lahde: stats.source,
       };
-      if (!MORTGAGE)
+      if (!MORTGAGE) {
+        // Ei omaa hakemusta: verrataan asiakkaan omia lukuja hyväksyttyjen hakijoiden mediaaneihin (opastus, ei lainapäätös)
+        const ap0 = stats.by_decision.approved;
         return {
           result: {
             asiakkaalla_hakemus: false,
-            huom: 'Tällä asiakkaalla ei ole asuntolainahakemusta aineistossa. Voit silti kertoa yleisesti, mihin pankki hakemuksessa katsoo (aineiston hakemusten perusteella).',
+            asiakkaan_tulot_tililla_12kk_kk: eur0(incomeMonth),
+            tilin_saldo_nyt: eur0(BALANCE_NOW),
+            hyvaksyttyjen_vaadittu_kuukausitulo_mediaani: eur0(ap0.required_monthly_income_eur.median),
+            hyvaksyttyjen_omarahoitus_mediaani: eur0(ap0.equity_eur.median),
+            huom: 'Tällä asiakkaalla ei ole asuntolainahakemusta aineistossa. Kortti vertaa hänen tulojaan ja tilin saldoaan hyväksyttyjen hakijoiden mediaaneihin. Saldo ei ole sama asia kuin omarahoitus, eikä vertailu ole lainapäätös. Kysy tarvittaessa asunnon hinta-arvio ja säästöt.',
             aineisto: general,
           },
+          card: {
+            kind: 'compare',
+            title: 'Te ja hyväksytyt asuntolainan hakijat',
+            origin: 'peers',
+            source: stats.source,
+            group: `hyväksytyt hakemukset (${stats.decisions.approved} kpl)`,
+            statistic: 'mediaani, vaalea alue = keskimmäinen puolikas',
+            period: 'oma tili: viimeiset 12 kk',
+            unit: '€',
+            rows: [
+              { key: 'palkka', label: 'Kuukausitulo (te) vs. vaadittu tulo', user: Math.round(incomeMonth), ref: Math.round(ap0.required_monthly_income_eur.median), p25: Math.round(ap0.required_monthly_income_eur.p25), p75: Math.round(ap0.required_monthly_income_eur.p75) },
+              { key: 'saasto', label: 'Tilin saldo (te) vs. omarahoitus', user: Math.round(BALANCE_NOW), ref: ap0.equity_eur.median, p25: ap0.equity_eur.p25, p75: ap0.equity_eur.p75, note: 'saldo ei ole sama asia kuin omarahoitus' },
+            ],
+            note: `Hylkäyksistä yleisin syy: vakuudet eivät riittäneet (${stats.rejection_reasons.insufficient_collateral ?? 0}/${stats.decisions.rejected}).`,
+          },
         };
+      }
       const f = MORTGAGE.final;
       const timeline = MORTGAGE.events.map((e) => {
         const bits = [String(e.ts).slice(0, 10), e.event];
