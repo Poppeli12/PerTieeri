@@ -8,10 +8,13 @@ import { getJson } from '../data/api';
 import { CUSTOMER, setCustomerData, setDemo as setDemoData, setPeerMedians } from '../finance/analytics';
 import { resetForecastCache } from '../finance/forecast';
 import { getScenarios, restoreScenarios, upsertScenario, type Scenario } from '../finance/insights';
-import { emptyMemory, mergeMemory, type BankSnapshot, type MemoryState } from './memoryModel';
+import { emptyMemory, mergeMemory, normalizeMemory, type BankSnapshot, type MemoryState } from './memoryModel';
 import { flushMemory, loadLocalBank, loadLocalMemory, saveLocalBank, saveLocalMemory } from './localMemory';
 import { cloudLoad, cloudSave } from './cloudMemory';
 import { supabase } from '../data/supabase';
+
+/** Kuusi valmista esimerkkikeskustelua (jaettu kaikille vierailijoille, ks. supabase/functions/api) */
+const DEMO_CUSTOMERS = new Set(['CUST00106', 'CUST00049', 'CUST00007', 'CUST00027', 'CUST00021', 'CUST00149']);
 
 /**
  * Sovelluksen tila ASIAKASKOHTAISESTI. Jokaisella aineiston asiakkaalla on oma profiili, muisti
@@ -163,6 +166,18 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           if (device.messages.length || device.profile) saved = mergeMemory(saved, device);
         }
       } else setCloudStatus('Vain tällä laitteella');
+      // Kuusi valmista esimerkkikeskustelua: jos vierailijalla ei ole omaa historiaa tällä asiakkaalla,
+      // aloitetaan demon valmiista keskustelusta. Vierailijan jatko tallentuu hänen omalle rivilleen.
+      if (DEMO_CUSTOMERS.has(id) && !saved.messages.length) {
+        try {
+          const demo = await getJson<Partial<MemoryState>>(`/api/demo-conversation?id=${encodeURIComponent(id)}`);
+          if (Array.isArray(demo?.messages) && demo.messages.length) {
+            saved = normalizeMemory({ ...saved, ...demo, prefs: demo.prefs ?? saved.prefs, updatedAt: Date.now() });
+          }
+        } catch {
+          // ei demokeskustelua saatavilla → tavallinen tyhjä aloitus
+        }
+      }
       if (!isCurrent()) return;
       const loaded = await loadCustomer(id, isCurrent, bank);
       if (!isCurrent() || !loaded) return;

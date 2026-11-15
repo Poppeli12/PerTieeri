@@ -113,11 +113,9 @@ async function agent(req: Request) {
   const userId = await userFrom(req);
   if (!userId) return json(401, { error: 'istunto puuttuu' });
   const now = Date.now();
-  while (hits.length && now - hits[0] > 60000) hits.shift();
-  if (hits.length >= RATE) return json(429, { error: 'liikaa pyyntöjä, odota hetki' });
-  hits.push(now);
-  const quota = await take(userId);
-  if (quota !== 'ok') return json(429, { error: quota === 'user_limit' ? 'päivän kysymyskiintiö täynnä' : 'demon päiväkiintiö täynnä' });
+  // Käyttörajat poistettu demoa varten (minuutti-, käyttäjä- ja päivärajat): agentti ei saa jumittua.
+  // Pääkytkin DEMO_AI_ENABLED ja istuntovaatimus säilyvät.
+  void now; void take;
   const key = Deno.env.get('OPENAI_API_KEY');
   if (!key) return json(503, { error: 'OPENAI_API_KEY puuttuu Supabasen salaisuuksista' });
   if (text.length > 512 * 1024) return json(413, { error: 'liian suuri pyyntö' });
@@ -130,7 +128,6 @@ async function agent(req: Request) {
     tools: body.tools,
     previous_response_id: body.previous_response_id,
     reasoning: { effort: Deno.env.get('OPENAI_REASONING') || 'medium' },
-    max_output_tokens: 12000,
     store: true,
   };
   const r = await fetch('https://api.openai.com/v1/responses', {
@@ -141,6 +138,22 @@ async function agent(req: Request) {
   return new Response(await r.text(), { status: r.status, headers: { ...CORS, 'Content-Type': 'application/json; charset=utf-8' } });
 }
 
+// ---------- jaetut demokeskustelut ----------
+// Kuusi valmista esimerkkikeskustelua tallennetaan demon ylläpitäjän (DEMO_OWNER_ID) riveille.
+// Kuka tahansa voi lukea ne (vain nämä kuusi asiakasta), ja vierailijan oma jatko tallentuu hänen omalle rivilleen.
+const DEMO_CUSTOMERS = new Set(['CUST00106', 'CUST00049', 'CUST00007', 'CUST00027', 'CUST00021', 'CUST00149']);
+async function demoConversation(id: string) {
+  const owner = Deno.env.get('DEMO_OWNER_ID');
+  if (!owner || !DEMO_CUSTOMERS.has(id) || !SERVICE) return json(404, { error: 'ei demokeskustelua' });
+  const r = await fetch(`${SUPABASE_URL}/rest/v1/pt_customer_memory?select=state&owner_id=eq.${owner}&customer_id=eq.${id}`, { headers: { apikey: SERVICE, Authorization: `Bearer ${SERVICE}` } });
+  if (!r.ok) return json(502, { error: 'demokeskustelua ei saatu' });
+  const rows = await r.json();
+  const st = rows[0]?.state;
+  if (!st || !Array.isArray(st.messages) || !st.messages.length) return json(404, { error: 'ei demokeskustelua' });
+  // vain keskustelun sisältö ja sen aikana opitut asiat (ei ylläpitäjän luonnosta tai vierityskohtaa)
+  return json(200, { messages: st.messages, profile: st.profile ?? null, prefs: st.prefs ?? null, answers: st.answers ?? {}, scenarios: st.scenarios ?? {}, quiz: st.quiz ?? {} });
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
   const u = new URL(req.url);
@@ -148,6 +161,7 @@ Deno.serve(async (req) => {
   const pathname = u.pathname.replace(/^\/functions\/v1/, '');
   try {
     if (pathname === '/api/agent') return await agent(req);
+    if (pathname === '/api/demo-conversation') return await demoConversation(u.searchParams.get('id') || '');
     const out = await api.route(pathname, Object.fromEntries(u.searchParams));
     if (out.raw != null) return new Response(out.raw, { status: out.status, headers: { ...CORS, 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'public, max-age=3600' } });
     return json(out.status, out.json);

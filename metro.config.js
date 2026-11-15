@@ -49,9 +49,7 @@ async function agent(req, res) {
   // Sama pääkytkin kuin pilvessä (.env.local: DEMO_AI_ENABLED=false → agentti tauolla, OpenAI:ta ei kutsuta)
   if (['false', '0', 'off', 'no'].includes(String(process.env.DEMO_AI_ENABLED || 'true').trim().toLowerCase())) return send(res, 403, { error: 'Per Tieeri on tauolla', ai_enabled: false });
   const now = Date.now();
-  while (hits.length && now - hits[0] > 60000) hits.shift();
-  if (hits.length >= RATE) return send(res, 429, { error: 'liikaa pyyntöjä, odota hetki' });
-  hits.push(now);
+  void hits; void RATE; void now; // nopeusraja poistettu demoa varten
   const key = process.env.OPENAI_API_KEY;
   if (!key) return send(res, 503, { error: 'OPENAI_API_KEY puuttuu (.env.local) – käynnistä palvelin uudelleen' });
   try {
