@@ -19,9 +19,10 @@ const verify = bank => {
       assert.equal(new Set(q.options).size, q.options.length);
       assert.equal(gamePoints(q, (q.correct + 1) % q.options.length), 0);
     } else {
-      const tolerance = Math.max(10, q.answer * q.tolerance);
-      assert.equal(gamePoints(q, q.answer + tolerance * 1.5), 1);
-      assert.equal(gamePoints(q, q.answer + tolerance * 3), 0);
+      // liukuva pisteytys: 25 % pielessä = 1 p, 50 % tai enemmän = 0 p
+      const base = Math.max(10, q.answer);
+      assert.equal(gamePoints(q, q.answer + base * 0.25), 1);
+      assert.equal(gamePoints(q, q.answer + base * 0.6), 0);
       assert.equal(gamePoints(q, 'noin sata'), 0);
       assert.equal(gamePoints(q, -1), 0);
     }

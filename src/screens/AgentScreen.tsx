@@ -246,15 +246,17 @@ function Welcome({ k, active, onAsk }: { k: number; active: boolean; onAsk: (q: 
             key={t}
             accessibilityRole="button"
             onPress={() => onAsk(t)}
-            style={({ pressed }) => [{ borderWidth: 2 * k, borderColor: C.greenDark, borderRadius: 10 * k, paddingVertical: 15 * k, paddingHorizontal: 18 * k, backgroundColor: t === GAME_PROMPT ? C.greenDark : '#fff', opacity: pressed ? 0.7 : 1 }]}
+            style={({ pressed }) => [{ borderWidth: 2 * k, borderColor: C.greenDark, borderRadius: 10 * k, paddingVertical: 15 * k, paddingHorizontal: 18 * k, backgroundColor: '#fff', opacity: pressed ? 0.7 : 1 }]}
           >
-            <Text style={{ fontSize: Math.max(17, 19 * k), lineHeight: Math.max(24, 26 * k), fontWeight: '600', color: t === GAME_PROMPT ? '#fff' : C.greenText }}>{t === GAME_PROMPT ? 'Aloita peli' : t}</Text>
+            <Text style={{ fontSize: Math.max(17, 19 * k), lineHeight: Math.max(24, 26 * k), fontWeight: '600', color: C.greenText }}>{t}</Text>
           </Pressable>
         ))}
       </View>
     </SCard>
   );
 }
+
+const VISUAL_CARDS = new Set(['chart', 'blocks', 'spendingGrid', 'baskets', 'waterfall', 'compare', 'bars', 'forecast', 'stat']);
 
 function Bubble({ k, m, first }: { k: number; m: Msg; first: boolean }) {
   const bot = m.from === 'bot';
@@ -266,8 +268,13 @@ function Bubble({ k, m, first }: { k: number; m: Msg; first: boolean }) {
         </View>
       </FadeIn>
     );
+  // Kaaviot ja muut kuvat näytetään ENSIN (käyttäjä näkee ilmiön heti), selitys niiden alla.
+  // Toiminnalliset kortit (peli, kysymykset, suunnitelmat) tulevat selityksen jälkeen.
+  const visual = (m.cards ?? []).filter((c) => VISUAL_CARDS.has(c.kind));
+  const other = (m.cards ?? []).filter((c) => !VISUAL_CARDS.has(c.kind));
   return (
     <View style={{ gap: 12, paddingHorizontal: 12 }}>
+      {visual.map((c, i) => <CardView key={`v${i}`} card={c} />)}
       <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
         <View style={{ width: 48 * k, marginRight: 12 * k }}>{first && <FaceAvatar size={48 * k} />}</View>
         {m.text ? (
@@ -276,7 +283,7 @@ function Bubble({ k, m, first }: { k: number; m: Msg; first: boolean }) {
           </View>
         ) : null}
       </View>
-      {m.cards?.map((c, i) => <CardView key={i} card={c} />)}
+      {other.map((c, i) => <CardView key={`o${i}`} card={c} />)}
     </View>
   );
 }

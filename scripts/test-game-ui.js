@@ -79,7 +79,7 @@ const live = process.argv.includes('--live');
       // Wait for the final response, not only the tool card.
       for (let n = 0; n < 120 && cloudMessages === 0; n++) await page.waitForTimeout(500);
       assert.ok(gameCalls >= 1 && cloudMessages >= 1, 'LLM chose the game and completed its reply in the real cloud');
-    } else assert.equal(sent, 'Haluan kokeilla peliä', 'Button sends natural language to the LLM');
+    } else assert.equal(sent, 'Haluan kokeilla kuukauden talouspeliä', 'Button sends natural language to the LLM');
     assert.ok(bank?.transactions?.length, 'Bank data was loaded from the selected customer');
     analytics.setCustomerData(bank);
     const questions = monthlyGame('2026-08').questions;

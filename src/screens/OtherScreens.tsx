@@ -71,6 +71,10 @@ function BonusHero({ k }: { k: number }) {
   const W = 591;
   // talo: x 141–449, harja y 352, räystäs y 390, pohja y 536
   const house = 'M141 391 L295 352 L449 391 L449 531 Q449 536 444 536 L146 536 Q141 536 141 531 Z';
+  // Per Tieerin talouspelistä kertynyt S-Bonus (tallentuu asiakkaan muistiin)
+  const { quiz } = useStore();
+  const earned = Object.entries(quiz).filter(([key]) => key.startsWith('bonus:')).reduce((sum, [, v]) => sum + (Number(v) || 0), 0);
+  const earnedText = `${earned.toLocaleString('fi-FI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
   return (
     <View style={{ height: 595 * k, backgroundColor: '#fff' }}>
       {/* yläpalkki: lukko · sivupisteet · viestit */}
@@ -86,11 +90,11 @@ function BonusHero({ k }: { k: number }) {
       </View>
 
       <At k={k} y={217} size={31} style={{ color: TG, fontWeight: '700', letterSpacing: -0.2 }}>
-        Bonustietoja ei ole saatavilla
+        {earned > 0 ? 'S-Bonusta kertynyt' : 'Bonustietoja ei ole saatavilla'}
       </At>
       <View style={[hh.abs, hh.row, { left: 0, right: 0, top: (246.5 - 11) * k, height: 22 * k }]}>
-        <Text style={{ color: TG, fontSize: 19.5 * k, fontWeight: '500' }}>Ruokakaupan ketju ei käy ilmi tapahtumista </Text>
-        <InfoDot size={11 * k} />
+        <Text style={{ color: TG, fontSize: 19.5 * k, fontWeight: '500' }}>{earned > 0 ? 'Talouspelin pisteistä 0,20 € / piste' : 'Ruokakaupan ketju ei käy ilmi tapahtumista '}</Text>
+        {earned > 0 ? null : <InfoDot size={11 * k} />}
       </View>
 
       {/* viivat ja talo */}
@@ -117,12 +121,12 @@ function BonusHero({ k }: { k: number }) {
       <At k={k} y={421.5} size={27.5} style={{ color: '#fff', fontWeight: '600' }}>
         Bonus
       </At>
-      <At k={k} y={470} size={71} style={{ color: '#fff', fontWeight: '700', letterSpacing: -1 * k }}>
-        —
+      <At k={k} y={470} size={earned > 0 ? 60 : 71} style={{ color: '#fff', fontWeight: '700', letterSpacing: -1 * k }}>
+        {earned > 0 ? earnedText : '—'}
       </At>
 
       <View style={[hh.abs, hh.row, { left: 0, right: 0, top: (565.5 - 16) * k, height: 32 * k }]}>
-        <Text style={{ color: TG, fontSize: 22 * k, fontWeight: '700' }}>Bonusta ei voida laskea näistä tiedoista</Text>
+        <Text style={{ color: TG, fontSize: 22 * k, fontWeight: '700' }}>{earned > 0 ? 'Per Tieerin talouspelistä' : 'Bonusta ei voida laskea näistä tiedoista'}</Text>
         <View style={{ marginLeft: 2 * k }}>
           <Chevron size={26 * k} color={TG} />
         </View>

@@ -358,12 +358,16 @@ export function gamePoints(q: GameQ, answer: number | string): number {
   if (q.type === 'choice') return answer === q.correct ? 2 : 0;
   const v = typeof answer === 'number' ? answer : parseGameAnswer(answer);
   if (v === null || !Number.isFinite(v) || v < 0) return 0;
-  const diff = Math.abs(v - q.answer);
-  const tol = Math.max(10, Math.abs(q.answer) * q.tolerance);
-  return diff <= tol ? 2 : diff <= tol * 2 ? 1 : 0;
+  // Liukuva pisteytys: osuma täsmälleen = 2 p, pisteet vähenevät tasaisesti virheen kasvaessa (50 % pielessä = 0 p).
+  const rel = Math.abs(v - q.answer) / Math.max(10, Math.abs(q.answer));
+  return Math.round(Math.max(0, 2 * (1 - rel / 0.5)) * 10) / 10;
 }
 
-/** Kuponki pisteiden mukaan (palkitsemiskonsepti – ei oikea S-Bonus-etu) */
+/** S-Bonusta pelistä: 0,20 € jokaisesta pisteestä (enintään 2,00 €). */
+export const GAME_BONUS_PER_POINT = 0.2;
+export const gameBonus = (points: number) => Math.round(points * GAME_BONUS_PER_POINT * 100) / 100;
+
+/** Bonuskuponki pisteiden mukaan: lisäbonusta seuraavasta ostoksesta (esittelyversion palkitsemiskonsepti) */
 export function gameCoupon(points: number, max: number) {
   const share = max > 0 ? points / max : 0;
   if (share >= 0.9) return { level: 'Talousmestari', discount: 15 };

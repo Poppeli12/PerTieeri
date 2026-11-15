@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Animated, Pressable, StyleSheet, View } from 'react-native';
 import type { Card } from '../../agent/types';
-import { gameCoupon, gamePoints, parseGameAnswer } from '../../finance/insights';
+import { gameBonus, gameCoupon, gamePoints, parseGameAnswer } from '../../finance/insights';
 import { useStore } from '../../state/store';
 import { C } from '../../theme';
 import { PerTieeriPortrait } from '../PerTieeriPortrait';
@@ -35,6 +35,8 @@ export function GameCard({ card }: { card: Extract<Card, { kind: 'game' }> }) {
     const value = q.type === 'choice' ? choice : number;
     if (value === null || value === undefined || !Number.isFinite(value)) return;
     setQuiz(answerKey(index), value);
+    // viimeinen vastaus: ansaittu S-Bonus talteen (näkyy etusivun Bonus-talossa)
+    if (qs.every((_, j) => j === index || answered(j))) setQuiz(`bonus:${id}`, gameBonus(score + gamePoints(q, value)));
   };
   const go = (direction: -1 | 1) => {
     if ((direction < 0 && index === 0) || (direction > 0 && (result === null || done))) return;
@@ -58,25 +60,28 @@ export function GameCard({ card }: { card: Extract<Card, { kind: 'game' }> }) {
         </View>
       </View>
     </View>
-    {!done && <Text style={[s.body, { marginTop: 14, color: C.sub }]}>Kolme monivalintaa ja kaksi omaa euroarviota tilitapahtumistanne. Lopuksi saatte pisteet ja demokupongin. Kuponki ei ole lunastettava etu.</Text>}
+    {!done && index === 0 && result === null && <View style={s.intro}>
+      <Text style={s.introLine}>5 kysymystä omasta kuukaudestanne</Text>
+      <Text style={s.introLine}>Jokainen piste = <Text style={{ fontWeight: '800', color: C.greenText }}>0,20 € S-Bonusta</Text></Text>
+      <Text style={s.introLine}>Lopuksi <Text style={{ fontWeight: '800', color: C.greenText }}>bonuskuponki</Text></Text>
+    </View>}
     <Animated.View testID="game-page" style={motion.style}>
       {!done && q && <View style={{ marginTop: 20, gap: 12 }}>
-        <Text style={s.label}>Kysymys {index + 1}/{qs.length} · {q.type === 'choice' ? 'Monivalinta' : 'Oma euroarvio'}</Text>
+        <Text style={s.label}>Kysymys {index + 1}/{qs.length}</Text>
         <Text accessibilityRole="header" style={s.question}>{q.q}</Text>
         {q.type === 'choice' ? q.options.map((option, j) => {
           const right = result !== null && j === q.correct;
           const selected = result !== null && quiz[answerKey(index)] === j;
           return <Pressable key={option} accessibilityRole="button" accessibilityState={{ disabled: result !== null || motion.busy, selected }} disabled={result !== null || motion.busy} onPress={() => check(j)}
             style={({ pressed }) => [s.option, right && { backgroundColor: C.greenDark, borderColor: C.greenDark }, selected && !right && { borderColor: '#A86A12', backgroundColor: '#FFF6E8' }, pressed && { opacity: 0.7 }]}>
-            <Text style={[s.body, { color: right ? '#fff' : C.text, fontWeight: '600' }]}>{option}{selected ? ' · Oma vastaus' : ''}{right ? ' · Oikein' : ''}</Text>
+            <Text style={[s.optionText, { color: right ? '#fff' : C.text }]}>{option}</Text>
           </Pressable>;
         }) : <View style={{ gap: 10 }}>
-          <Text style={s.body}>Kirjoittakaa arvio euroina. Lähelle osumisestakin saa pisteitä.</Text>
-          <TextInput accessibilityLabel="Oma arvio euroina" value={result !== null ? String(quiz[answerKey(index)]).replace('.', ',') : draft} onChangeText={text => setDrafts(previous => ({ ...previous, [index]: text }))} editable={result === null && !motion.busy} keyboardType="decimal-pad" placeholder="Esimerkiksi 100" placeholderTextColor={C.sub} onSubmitEditing={() => check()} style={s.input} />
+          <TextInput accessibilityLabel="Oma arvio euroina" value={result !== null ? String(quiz[answerKey(index)]).replace('.', ',') : draft} onChangeText={text => setDrafts(previous => ({ ...previous, [index]: text }))} editable={result === null && !motion.busy} keyboardType="decimal-pad" placeholder="Arvio euroina" placeholderTextColor={C.sub} onSubmitEditing={() => check()} style={s.input} />
           {result === null && <Pressable accessibilityRole="button" disabled={number === null || motion.busy} onPress={() => check()} style={[s.action, (number === null || motion.busy) && { backgroundColor: '#C9D3CD' }]}><Text style={s.actionText}>Vastaa</Text></Pressable>}
         </View>}
         {result !== null && <View accessibilityLiveRegion="polite" style={[s.feedback, { backgroundColor: result > 0 ? C.mint : '#FFF6E8' }]}>
-          <Text style={[s.body, { fontWeight: '700', color: C.greenText }]}>{result === 2 ? (q.type === 'choice' ? 'Oikein!' : 'Hyvin arvioitu!') : result === 1 ? 'Lähellä!' : 'Tästä opimme.'} {result}/2 pistettä</Text>
+          <Text style={[s.body, { fontSize: 20, fontWeight: '800', color: result > 0 ? C.greenText : '#A86A12' }]}>{result === 2 ? 'Oikein!' : result >= 1 ? 'Lähellä!' : result > 0 ? 'Suunta oikea!' : 'Tästä opimme.'} +{pts(result)} pistettä</Text>
           <Text style={s.body}>{q.why}</Text>
         </View>}
       </View>}
@@ -84,27 +89,29 @@ export function GameCard({ card }: { card: Extract<Card, { kind: 'game' }> }) {
     </Animated.View>
     <View style={s.navigation}>
       <PageArrow direction={-1} disabled={index === 0 || motion.busy} label="Edellinen kysymys" onPress={() => go(-1)} />
-      <Text style={[s.body, { flex: 1, textAlign: 'center', color: C.sub }]}>{done ? 'Vastauksia voi vielä selata' : result === null ? 'Vastatkaa ensin' : index + 1 === qs.length ? 'Katso tulos' : 'Seuraava kysymys'}</Text>
+      <Text style={[s.body, { flex: 1, textAlign: 'center', fontWeight: '700', color: C.greenText }]}>{pts(score)} pistettä</Text>
       <PageArrow direction={1} disabled={done || result === null || motion.busy} label={index + 1 === qs.length ? 'Katso tulos' : 'Seuraava kysymys'} onPress={() => go(1)} />
     </View>
     {!done && <Pressable accessibilityRole="button" onPress={() => setSkipped(true)} style={{ padding: 12, alignSelf: 'center' }}><Text style={[s.body, { color: C.greenText, textDecorationLine: 'underline' }]}>Jatkan myöhemmin</Text></Pressable>}
   </View>;
 }
 
+const pts = (n: number) => n.toLocaleString('fi-FI', { maximumFractionDigits: 1 });
+const eur = (n: number) => `${n.toLocaleString('fi-FI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
+
 function Reward({ score, total }: { score: number; total: number }) {
   const coupon = gameCoupon(score, total);
-  return <View testID="game-reward" style={{ gap: 14, marginTop: 22 }}>
-    <Text style={s.question}>Koetus valmis!</Text>
-    <Text style={[s.title, { fontSize: 30 }]}>{score}/{total} pistettä</Text>
-    <Text style={s.body}>Pisteet kertovat tämän koetuksen vastauksista. Tärkeintä on, että opitte huomaamaan oman taloutenne tapoja.</Text>
-    <View testID="game-coupon" style={s.coupon}>
-      <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700' }}>PER TIEERI · DEMOKUPONKI</Text>
-      <Text style={{ color: '#fff', fontSize: 42, fontWeight: '800' }}>{coupon.discount} %</Text>
-      <Text style={{ color: '#fff', fontSize: 23, fontWeight: '700' }}>{coupon.level}</Text>
-      <View style={{ borderTopColor: '#A9D4BB', borderTopWidth: 1, borderStyle: 'dashed', marginVertical: 6 }} />
-      <Text style={{ color: '#fff', fontSize: 16, lineHeight: 23 }}>Harjoittelupalkinto. Ei oikea alennus, S-Bonus-etu tai lunastettava kuponki.</Text>
+  return <View testID="game-reward" style={{ gap: 14, marginTop: 22, alignItems: 'center' }}>
+    <Text style={[s.title, { fontSize: 30, lineHeight: 36 }]}>{pts(score)}/{total} pistettä</Text>
+    <View style={s.bonus}>
+      <Text style={{ color: C.greenText, fontSize: 20, fontWeight: '700' }}>S-Bonusta kertyi</Text>
+      <Text style={{ color: C.greenText, fontSize: 44, lineHeight: 50, fontWeight: '800' }}>+{eur(gameBonus(score))}</Text>
     </View>
-    <Text style={[s.body, { color: C.sub }]}>Pisteet 0–2: 2 % · 3–5: 5 % · 6–8: 10 % · 9–10: 15 %. Jokaisesta kysymyksestä saa enintään 2 pistettä.</Text>
+    <View testID="game-coupon" style={s.coupon}>
+      <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700' }}>BONUSKUPONKI · {coupon.level.toUpperCase()}</Text>
+      <Text style={{ color: '#fff', fontSize: 44, lineHeight: 50, fontWeight: '800' }}>+{coupon.discount} %</Text>
+      <Text style={{ color: '#fff', fontSize: 19, fontWeight: '700' }}>lisäbonusta seuraavasta ostoksesta</Text>
+    </View>
   </View>;
 }
 
@@ -115,13 +122,17 @@ const s = StyleSheet.create({
   progress: { flexDirection: 'row', gap: 6, marginTop: 10 },
   step: { flex: 1, height: 6, borderRadius: 3 },
   body: { fontSize: 17, lineHeight: 25, color: C.text },
-  label: { fontSize: 16, color: C.sub, fontWeight: '600' },
+  label: { fontSize: 17, color: C.greenText, fontWeight: '700' },
+  intro: { marginTop: 14, gap: 8, backgroundColor: C.mint, borderRadius: 14, padding: 16 },
+  introLine: { fontSize: 19, lineHeight: 26, color: C.text, fontWeight: '600' },
+  optionText: { fontSize: 19, lineHeight: 25, fontWeight: '700' },
+  bonus: { alignSelf: 'stretch', alignItems: 'center', backgroundColor: C.mint, borderRadius: 18, paddingVertical: 16 },
   question: { fontSize: 21, lineHeight: 29, fontWeight: '700', color: C.text },
-  option: { padding: 16, minHeight: 52, borderRadius: 14, borderWidth: 1.5, borderColor: '#D5DDD8' },
+  option: { paddingVertical: 18, paddingHorizontal: 18, minHeight: 60, borderRadius: 14, borderWidth: 2, borderColor: C.greenDark, justifyContent: 'center' },
   input: { fontSize: 22, color: C.text, minHeight: 56, paddingHorizontal: 18, paddingVertical: 12, borderRadius: 14, backgroundColor: '#F3F3F3' },
   action: { backgroundColor: C.greenDark, padding: 14, borderRadius: 28, minHeight: 48, alignItems: 'center' },
   actionText: { fontSize: 17, fontWeight: '700', color: '#fff' },
   feedback: { padding: 16, borderRadius: 14, gap: 8 },
   navigation: { flexDirection: 'row', gap: 10, alignItems: 'center', marginTop: 20 },
-  coupon: { backgroundColor: C.greenDark, padding: 22, borderRadius: 18, gap: 8 },
+  coupon: { alignSelf: 'stretch', backgroundColor: C.greenDark, padding: 22, borderRadius: 18, gap: 6 },
 });

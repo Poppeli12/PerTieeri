@@ -6,7 +6,7 @@ import { C } from '../theme';
 import { Text } from './Text';
 import { useSlideTransition } from './useSlideTransition';
 
-export const GAME_PROMPT = 'Haluan kokeilla peliä';
+export const GAME_PROMPT = 'Haluan kokeilla kuukauden talouspeliä';
 
 export function PageArrow({ direction, disabled, label, onPress }: { direction: -1 | 1; disabled: boolean; label: string; onPress: () => void }) {
   return <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled }} disabled={disabled} onPress={onPress}
@@ -27,15 +27,13 @@ export function SuggestionPager({ items, onSend }: { items: string[]; onSend: (t
     <View style={{ flex: 1, overflow: 'hidden' }}>
       <Animated.View testID="suggestion-page" style={[{ gap: 8 }, motion.style]}>
         {items.slice(current * 2, current * 2 + 2).map(text => {
-          const game = text === GAME_PROMPT;
-          const filled = game || text.startsWith('§save');
+          const filled = text.startsWith('§save');
           return <Pressable key={text} accessibilityRole="button" disabled={motion.busy} onPress={() => onSend(text)}
             style={({ pressed }) => ({ borderWidth: 1.5, borderColor: C.greenDark, borderRadius: 16, paddingHorizontal: 12, paddingVertical: 10, minHeight: 44, justifyContent: 'center', backgroundColor: filled ? C.greenDark : '#fff', opacity: pressed ? 0.7 : 1 })}>
-            <Text style={{ fontSize: 16, lineHeight: 21, fontWeight: '600', color: filled ? '#fff' : C.greenText }}>{game ? 'Aloita peli' : displayFor(text)}</Text>
+            <Text style={{ fontSize: 16, lineHeight: 21, fontWeight: '600', color: filled ? '#fff' : C.greenText }}>{displayFor(text)}</Text>
           </Pressable>;
         })}
       </Animated.View>
-      {pages > 1 && <Text accessibilityLabel={`Ehdotussivu ${current + 1}/${pages}`} style={{ color: C.sub, fontSize: 12, textAlign: 'center', marginTop: 3 }}>{current + 1} / {pages}</Text>}
     </View>
     <PageArrow direction={1} disabled={current >= pages - 1 || motion.busy} label="Seuraavat ehdotukset" onPress={() => go(1)} />
   </View>;

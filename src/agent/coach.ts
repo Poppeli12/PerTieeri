@@ -118,7 +118,7 @@ export const COACH_TOOL_DEFS = [
   {
     name: 'monthly_game',
     description:
-      'Käynnistä henkilökohtainen talouspeli tai tietovisa, kun asiakas haluaa pelata tai kokeilla taloustietojaan, ilmaisee hän sen miten tahansa. 5 kysymystä (3 monivalintaa + 2 avointa euroarviota) asiakkaan OMISTA tapahtumista. Pelikortti hoitaa vastaukset, opetuksen, pisteet ja lopun demokupongin. Oletuksena edellinen täysi kuukausi. Vapaaehtoinen.',
+      'Käynnistä henkilökohtainen talouspeli tai tietovisa, kun asiakas haluaa pelata tai kokeilla taloustietojaan, ilmaisee hän sen miten tahansa. 5 kysymystä (3 monivalintaa + 2 avointa euroarviota) asiakkaan OMISTA tapahtumista. Pelikortti hoitaa vastaukset, opetuksen, pisteet, S-Bonuksen (0,20 € / piste) ja lopun bonuskupongin. Oletuksena edellinen täysi kuukausi. Vapaaehtoinen.',
     parameters: obj({ month: { type: 'string', description: 'YYYY-MM (oletus edellinen täysi kuukausi)' } }),
   },
 ].map((t) => ({ type: 'function' as const, strict: false, ...t }));
@@ -478,7 +478,7 @@ export function runCoachTool(name: string, a: any, ctx: AgentCtx): { result: unk
       const ym = ymRe.test(a.month || '') ? a.month : prevYm(TODAY.slice(0, 7));
       const g = monthlyGame(ym);
       return {
-        result: { kuukausi: fiYm(ym), kysymyksia: g.questions.length, monivalintoja: 3, avoimia_euroarvioita: 2, enintaan_pisteita: 10, palkinto: 'Pisteisiin perustuva demokuponki: 2, 5, 10 tai 15 %. Ei lunastettava etu.', ohje: 'Peli näkyy kortissa. Kerro aluksi lyhyesti: kysymykset omista tilitapahtumista, kolme monivalintaa ja kaksi omaa euroarviota sekä lopuksi pisteet ja demokuponki. Kuponki on harjoittelua varten, ei oikea etu. Älä paljasta vastauksia. Peli on vapaaehtoinen.' },
+        result: { kuukausi: fiYm(ym), kysymyksia: g.questions.length, monivalintoja: 3, avoimia_euroarvioita: 2, enintaan_pisteita: 10, pisteytys: 'Monivalinta oikein 2 p. Oma euroarvio 0–2 p sen mukaan, kuinka lähelle osuu.', palkinto: 'Jokaisesta pisteestä 0,20 € S-Bonusta (enintään 2,00 €), joka näkyy etusivun Bonus-talossa, ja lopuksi bonuskuponki: 2, 5, 10 tai 15 % lisäbonusta seuraavasta ostoksesta pisteiden mukaan.', ohje: 'Peli näkyy kortissa. Kerro aluksi rautalangasta väännettynä, lyhyesti ja jäsennellysti (numeroidut kohdat): 1) mitä peli on (5 kysymystä asiakkaan omasta kuukaudesta: 3 monivalintaa ja 2 omaa euroarviota), 2) miten pisteet tulevat, 3) mitä saa (S-Bonusta 0,20 € pisteeltä ja bonuskuponki), 4) mitä siitä oppii. Mainitse kerran, että tämä on esittelyversion palkitsemiskokeilu. Älä paljasta vastauksia. Peli on vapaaehtoinen. Voit kysyä yhden lyhyen kysymyksen, jos jokin on epäselvää.' },
         card: { kind: 'game', id: `game-${ym}-${Date.now().toString(36)}`, title: `Oman talouden peli · ${fiYm(ym)}`, ym, questions: g.questions },
       };
     }

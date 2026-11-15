@@ -1,7 +1,7 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Animated, Pressable, StyleSheet, View } from 'react-native';
 import { Text } from '../Text';
-import { eur0, fmtDay, isOut, labelOf, lastOutflows } from '../../finance/analytics';
+import { eur0, isOut, labelOf, lastOutflows } from '../../finance/analytics';
 import { C, CAT_COLORS } from '../../theme';
 
 /** "Mihin 1000 € meni?" – 100 ruutua, jokainen = 10 € */
@@ -46,7 +46,7 @@ export function BlocksCard() {
     return { groups: groups.map((x, i) => ({ ...x, blocks: blocks[i] })), cells, from };
   }, [mode]);
 
-  const anims = useRef(Array.from({ length: 100 }, () => new Animated.Value(0))).current;
+  const [anims] = useState(() => Array.from({ length: 100 }, () => new Animated.Value(0)));
   const [sel, setSel] = useState<number | null>(null);
   useEffect(() => {
     anims.forEach((a) => a.setValue(0));
@@ -62,7 +62,7 @@ export function BlocksCard() {
           </Pressable>
         ))}
       </View>
-      <Text style={s.caption}>1 ruutu = 10 € · viimeiset 1 000 € alkaen {data.from ? fmtDay(data.from) : ''}</Text>
+      <Text style={s.caption}>1 ruutu = 10 €</Text>
       <View style={s.grid}>
         {data.cells.map((gi, i) => (
           <Animated.View
@@ -80,7 +80,7 @@ export function BlocksCard() {
             <View style={[s.sw, { backgroundColor: CAT_COLORS[i % CAT_COLORS.length] }]} />
             <Text style={[s.lgLabel, sel === i && { fontWeight: '800' }]}>{g.label}</Text>
             <Text style={s.lgVal}>
-              {g.blocks} ruutua · {eur0(g.v)}
+              {eur0(g.v)}
             </Text>
           </Pressable>
         ))}
@@ -91,15 +91,15 @@ export function BlocksCard() {
 
 const s = StyleSheet.create({
   seg: { flexDirection: 'row', borderWidth: 1.5, borderColor: C.text, marginBottom: 10 },
-  segBtn: { flex: 1, paddingVertical: 7, alignItems: 'center', backgroundColor: '#fff' },
+  segBtn: { flex: 1, paddingVertical: 12, alignItems: 'center', backgroundColor: '#fff' },
   segOn: { backgroundColor: C.text },
-  segText: { fontSize: 13.5, fontWeight: '600', color: C.text },
-  caption: { fontSize: 12.5, color: C.sub, marginBottom: 8 },
+  segText: { fontSize: 17, fontWeight: '700', color: C.text },
+  caption: { fontSize: 19, fontWeight: '700', color: C.text, marginBottom: 10 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 3, alignSelf: 'center', width: 10 * 24 + 9 * 3 },
   cell: { width: 24, height: 24, borderRadius: 5 },
-  legend: { marginTop: 12, gap: 6 },
+  legend: { marginTop: 14, gap: 10 },
   lgRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  sw: { width: 14, height: 14, borderRadius: 4 },
-  lgLabel: { flex: 1, fontSize: 14, color: C.text },
-  lgVal: { fontSize: 13, color: C.sub },
+  sw: { width: 22, height: 22, borderRadius: 5 },
+  lgLabel: { flex: 1, fontSize: 18, fontWeight: '600', color: C.text },
+  lgVal: { fontSize: 18, fontWeight: '700', color: C.greenText },
 });

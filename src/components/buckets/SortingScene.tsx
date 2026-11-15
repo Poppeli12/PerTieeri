@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { AccessibilityInfo, Animated, Easing, Image, View } from 'react-native';
 import Svg, { Path, Rect } from 'react-native-svg';
 import { addDays, eur0, fmtDay, labelOf, TODAY, txs } from '../../finance/analytics';
@@ -115,8 +115,11 @@ export function SortingScene({ active = true }: { months?: number; active?: bool
   return (
     <View>
       <View onLayout={(e) => setW(e.nativeEvent.layout.width)} style={{ width: '100%', aspectRatio: scene.aspect }} accessible accessibilityRole="image" accessibilityLabel="Per Tieeri lajittelee kuitteja kolmeen ämpäriin: pakolliset ja säännölliset, pakolliset ja epäsäännölliset sekä arjen lipsuvat menot.">
+        {/* Kaikki kolme kuvaa ladataan heti ja pidetään päällekkäin: vaihto on välitön eikä kuva välähdä tyhjänä. */}
         <Animated.View style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, opacity: fade }}>
-          <Image source={scene.img} style={{ width: '100%', height: '100%' }} resizeMode="contain" />
+          {(Object.keys(SCENES) as Basket[]).map((b) => (
+            <Image key={b} source={SCENES[b].img} style={{ position: 'absolute', width: '100%', height: '100%', opacity: SCENES[b] === scene ? 1 : 0 }} resizeMode="contain" />
+          ))}
         </Animated.View>
         {w > 0 && r && !reduce && (
           <Animated.View pointerEvents="none" style={{ position: 'absolute', left: scene.hand.x * w - 16 * k, top: 0, opacity: op, transform: [{ translateY: y }, { rotate: rot }] }}>
